@@ -8,3 +8,10 @@ desktop.ini
 
 # Python 快取
 __pycache__/
+
+# 不公開：用印／簽章建築圖、建築師原始 DWG、含單價複價的資料
+建築圖(已簽章).pdf
+A2-*印*.pdf
+*.dwg
+高軟每日施工內容*.csv
+未施作工項清單.xlsx
