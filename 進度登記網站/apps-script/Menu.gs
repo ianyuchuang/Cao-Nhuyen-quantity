@@ -6,6 +6,7 @@ function onOpen() {
     .addItem('全部重算（網站每日數量）', 'menuRecalcAll')
     .addItem('從正式版同步主表', 'menuSync')
     .addItem('設定期初', 'menuSetOpening')
+    .addItem('從進度紀錄重建目前進度', 'menuRebuildCurrent')
     .addSeparator()
     .addItem('安裝每日同步觸發（每天 02:00）', 'installTriggers')
     .addItem('移除每日同步觸發', 'removeTriggers')

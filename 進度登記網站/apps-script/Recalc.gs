@@ -218,3 +218,54 @@ function logSh_append_(rows) {
   var sh = sheet_(CFG.SH.LOG);
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, LOG_WIDTH).setValues(rows);
 }
+
+/**
+ * 從「進度紀錄」重建「目前進度」：每個位置取施工日期最新（同日以時間戳較晚）的一筆；沒有紀錄的位置清空。
+ * 用在手動刪改「進度紀錄」之後（例如清掉測試登記）。不寫 J 欄公式。
+ */
+function rebuildCurrent_() {
+  clearLocCache_();
+  var L = loadLocations_();
+  var cur = loadCurrent_();
+  var sh = sheet_(CFG.SH.LOG);
+  var n = sh.getLastRow() - 1;
+  var latest = Object.create(null);
+  if (n > 0) {
+    sh.getRange(2, 1, n, LOG_WIDTH).getValues().forEach(function (r, i) {
+      var id = trim_(r[LOG_COL.ID - 1]);
+      var d = dateStr_(r[LOG_COL.DATE - 1]);
+      if (!id || !d) return;
+      var ts = r[LOG_COL.TS - 1];
+      var t = ts instanceof Date ? ts.getTime() : 0;
+      var o = latest[id];
+      if (!o || d > o.d || (d === o.d && (t > o.t || (t === o.t && i > o.i)))) latest[id] = { d: d, t: t, i: i, r: r };
+    });
+  }
+  var people = peopleMap_();
+  var count = 0;
+  Object.keys(cur.byId).forEach(function (id) {
+    var c = cur.byId[id], o = latest[id], loc = L.byId[id];
+    if (!o) { cur.byId[id] = { row: c.row, p: '', f: '', s: '', d: '', by: '', ts: '' }; return; }
+    var r = o.r, p = fromFrac_(r[LOG_COL.PCT - 1]), f = '', s = '';
+    if (loc && loc.tag) {
+      var m = String(r[LOG_COL.DETAIL - 1]).match(/([\d.]+)%[^\d]*([\d.]+)%/);
+      f = m ? Number(m[1]) : p; s = m ? Number(m[2]) : p;
+    }
+    var by = String(r[LOG_COL.BY - 1]);
+    var pp = people[by.toLowerCase()];
+    cur.byId[id] = { row: c.row, p: p, f: f, s: s, d: o.d, by: (pp && pp.name) || by, ts: r[LOG_COL.TS - 1] };
+    count++;
+  });
+  writeCurrent_(cur, L);
+  return count;
+}
+
+/** 選單：從進度紀錄重建目前進度 */
+function menuRebuildCurrent() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(60000);
+  try {
+    var n = rebuildCurrent_();
+    alert_('已從「進度紀錄」重建「目前進度」：' + n + ' 個位置有登記，其餘清空。');
+  } finally { lock.releaseLock(); }
+}

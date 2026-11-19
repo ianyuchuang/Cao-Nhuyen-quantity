@@ -41,6 +41,7 @@ class Range {
       }); }); return this;
   }
   setValue(x) { this.sh.set(this.r, this.c, x); return this; }
+  getValue() { return this.sh.get(this.r, this.c); }
   setFormula(f) { this.sh.f[this.r + ',' + this.c] = f; return this; }
   clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh.set(this.r + i, this.c + j, ''); return this; }
   clear() { return this.clearContent(); }
@@ -218,4 +219,25 @@ ok(call({ action: 'bootstrap', token: T.tokV }).error === 'forbidden', '人員�
 ok(call({ action: 'bootstrap', token: T.tokE }).user.role === 'editor', '人員表模式：試算表編輯者仍是 editor');
 FakeDate.now = () => NOW; let rl = 0; for (let i = 0; i < 70; i++) if (call({ action: 'history', token: T.tokE, ids: [] }).error === 'busy') rl++;
 ok(rl > 0, '每分鐘超過 60 次 → busy');
+
+// ---------- 7. 人員表自動填入＋待核准 ----------
+FakeDate.now = () => NOW + 120000; cache.clear();
+let rx = call({ action: 'bootstrap', token: T.tokX });
+ok(rx.error === 'forbidden' && /送出使用申請/.test(rx.message), '未在人員表的人登入 → 自動加入並提示等待核准');
+const prow = people.d.find(r => r[0] === 'stranger@x.com');
+ok(prow && prow[4] === '待核准' && people.get(1, 5) === '狀態', '人員表新增一列，狀態「待核准」，E1 補上表頭');
+rx = call({ action: 'bootstrap', token: T.tokX });
+ok(/核准中/.test(rx.message) && people.d.filter(r => r[0] === 'stranger@x.com').length === 1, '再次登入不重複加入');
+prow[4] = '核准'; cache.clear();
+ok(call({ action: 'bootstrap', token: T.tokX }).user.role === 'viewer', '狀態改成「核准」後可登入');
+prow[4] = '停用'; cache.clear();
+ok(/停用/.test(call({ action: 'bootstrap', token: T.tokX }).message), '狀態「停用」→ 不能登入');
+
+// ---------- 8. 從進度紀錄重建目前進度 ----------
+const snap8 = () => cur.d.slice(1).map(r => r.slice(6, 9).concat([r[10]]).map(v => v instanceof Date ? fmtDate(v, 'Asia/Taipei', 'yyyy-MM-dd') : v));
+const before8 = snap8();
+for (let i = 2; i <= cur.getLastRow(); i++) for (const c of [7, 8, 9, 11, 12, 13]) cur.set(i, c, '');
+const nre = ctx.rebuildCurrent_();
+const after8 = snap8();
+ok(nre === 5 && JSON.stringify(after8) === JSON.stringify(before8), '清空後從進度紀錄重建，目前進度（完成%、框、扇、日期）與原本相同');
 console.log('\n全部通過');

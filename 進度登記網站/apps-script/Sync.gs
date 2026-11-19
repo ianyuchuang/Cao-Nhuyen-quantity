@@ -2,7 +2,7 @@
  * 從正式版同步主表「施工-實際進度」（只讀正式版）
  *
  * 做法：把正式版「施工-實際進度 (修訂2版)」整張複製成本試算表的暫存工作表（copyTo 只寫入目的地，不會改動正式版），
- * 再把暫存表整個範圍（值、公式、格式）貼到本表主表，最後刪掉暫存表。
+ * 再把暫存表的格式貼到本表主表、數值改寫成正式版算好的值（不帶公式，避免跨工作表參照變成 #REF!），最後刪掉暫存表。
  * 主表工作表本身不刪除，其他工作表對它的參照不會失效。
  * 接著：
  *   1. 主表中網站管理的層級 A～C 標淺藍；
@@ -27,7 +27,10 @@ function syncFromOfficial() {
     if (main.getMaxColumns() < C) main.insertColumnsAfter(main.getMaxColumns(), C - main.getMaxColumns());
     if (main.getMaxColumns() > C) main.deleteColumns(C + 1, main.getMaxColumns() - C);
     main.getRange(1, 1, R, C).clear();
-    tmp.getRange(1, 1, R, C).copyTo(main.getRange(1, 1), SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
+    // 只貼格式＋正式版算好的數值：正式版的公式會參照它自己的其他工作表（例如「施工-實際進度 (修訂1版)」），
+    // 連公式一起複製會變成 #REF!，所以數值一律從正式版讀取後寫入（讀取不會改動正式版）。
+    tmp.getRange(1, 1, R, C).copyTo(main.getRange(1, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    main.getRange(1, 1, R, C).setValues(src.getRange(1, 1, R, C).getValues());
     main.setFrozenRows(src.getFrozenRows());
     main.setFrozenColumns(src.getFrozenColumns());
     ss.deleteSheet(tmp);

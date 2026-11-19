@@ -88,7 +88,7 @@ function acl_() {
   var editors = ss.getEditors().map(low);
   try { var o = ss.getOwner(); if (o) editors.push(low(o)); } catch (e) { /* 共用雲端硬碟沒有擁有者 */ }
   var viewers;
-  if (aclSource_() === 'people') viewers = Object.keys(peopleMap_());
+  if (aclSource_() === 'people') viewers = peopleOk_();
   else viewers = ss.getViewers().map(low); // 含加註者
   var acl = { editors: editors.filter(String), viewers: viewers.filter(String) };
   cache.put('acl', JSON.stringify(acl), CFG.ACL_TTL);
@@ -101,7 +101,11 @@ function clearAclCache() {
   toast_('已清除權限快取，新的名單立即生效。');
 }
 
-/** 「人員」表：email → 顯示名稱 */
+/**
+ * 「人員」表：A Google 帳號、B 顯示名稱、C 負責工項、D 備註、E 狀態
+ * 狀態：空白或「核准」＝可用；「待核准」「停用」＝不可用。
+ * 回傳 { email: { name, ok, status } }
+ */
 function peopleMap_() {
   var cache = CacheService.getScriptCache();
   var hit = cache.get('people');
@@ -109,16 +113,56 @@ function peopleMap_() {
   var map = {};
   var sh = ss_().getSheetByName(CFG.SH.PEOPLE);
   if (sh && sh.getLastRow() > 1) {
-    sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
+    var cols = Math.min(5, sh.getMaxColumns());
+    sh.getRange(2, 1, sh.getLastRow() - 1, cols).getValues().forEach(function (r) {
       var e = trim_(r[0]).toLowerCase();
-      if (e && e.indexOf('@') > 0) map[e] = safeText_(r[1], 60);
+      if (!e || e.indexOf('@') <= 0 || map[e]) return;
+      var st = cols >= 5 ? trim_(r[4]) : '';
+      map[e] = { name: safeText_(r[1], 60), status: st, ok: st !== '待核准' && st !== '停用' };
     });
   }
   cache.put('people', JSON.stringify(map), CFG.ACL_TTL);
   return map;
 }
 
+function peopleOk_() {
+  var m = peopleMap_();
+  return Object.keys(m).filter(function (e) { return m[e].ok; });
+}
+
 function displayName_(user) {
   var m = peopleMap_();
-  return (Object.prototype.hasOwnProperty.call(m, user.email) && m[user.email]) || user.gname || user.email;
+  var p = Object.prototype.hasOwnProperty.call(m, user.email) ? m[user.email] : null;
+  return (p && p.name) || user.gname || user.email;
+}
+
+/**
+ * 權限來源為「人員表」時，沒有權限的人登入就把帳號寫進「人員」表、狀態「待核准」，
+ * 管理者把狀態改成「核准」（或清空）後即可使用（最多 10 分鐘，或選單「清除權限快取」立即生效）。
+ * 回傳 'added'（剛加入）、'pending'（已在等待）、'disabled'（已停用）或 ''（不適用）
+ */
+var MAX_PENDING = 200;
+function registerPending_(user) {
+  if (aclSource_() !== 'people') return '';
+  var p = peopleMap_()[user.email];
+  if (p) return p.status === '停用' ? 'disabled' : 'pending';
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return 'pending';
+  try {
+    var sh = sheet_(CFG.SH.PEOPLE);
+    if (sh.getMaxColumns() < 5) sh.insertColumnsAfter(sh.getMaxColumns(), 5 - sh.getMaxColumns());
+    if (!trim_(sh.getRange(1, 5).getValue())) sh.getRange(1, 5).setValue('狀態');
+    var n = sh.getLastRow() - 1;
+    var rows = n > 0 ? sh.getRange(2, 1, n, 5).getValues() : [];
+    var pending = 0;
+    for (var i = 0; i < rows.length; i++) {
+      if (trim_(rows[i][0]).toLowerCase() === user.email) return 'pending';
+      if (trim_(rows[i][4]) === '待核准') pending++;
+    }
+    if (pending >= MAX_PENDING) return 'pending';
+    sh.getRange(sh.getLastRow() + 1, 1, 1, 5).setValues([[safeText_(user.email, 120), safeText_(user.gname, 60), '',
+      '網站登入自動加入 ' + todayStr_(), '待核准']]);
+    CacheService.getScriptCache().remove('people');
+    return 'added';
+  } finally { lock.releaseLock(); }
 }
