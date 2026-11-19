@@ -364,7 +364,7 @@
       const rows = j.records.map(r => `<div><span class="mono">${esc(r.date)}</span><span><b>${esc(nameOf(r.id))}</b> ${esc(fp(r.old === '' ? null : Number(r.old)))} → <b>${esc(fp(Number(r.p)))}</b> ${esc(r.detail || '')}<br><span class="muted">${esc(r.level)}・${esc(r.by)}・${esc(r.ts)}${r.reason ? '・原因：' + esc(r.reason) : ''}${r.note ? '・' + esc(r.note) : ''}</span></span></div>`);
       const mats = (j.materials || []).map(m => `<div><span class="mono">${esc(m.date)}</span><span>進料 <b class="mono">${esc(fmt(m.qty))}</b><br><span class="muted">${esc(m.by)}${m.note ? '・' + esc(m.note) : ''}</span></span></div>`);
       const el = $('histList');
-      if (el) el.innerHTML = (rows.concat(mats).join('') || '<p class="muted">沒有紀錄。</p>') + (j.all ? '' : '<p class="muted">檢視者只看得到自己與期初推估的紀錄。</p>');
+      if (el) el.innerHTML = (rows.concat(mats).join('') || '<p class="muted">沒有紀錄。</p>');
     } catch (e) {
       const el = $('histList'); if (el) el.innerHTML = `<p class="muted">讀取失敗：${esc(e.message || e.code)}</p>`;
     }
