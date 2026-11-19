@@ -15,9 +15,10 @@
 <div id="login" class="login" hidden>
   <div class="login-card">
     <h1>工項進度登記</h1>
-    <p class="muted">用 Google 帳號登入。帳號需要被加入試算表「工項進度登記」的共用名單。</p>
+    <p class="muted">用 Google 帳號登入。第一次登入會自動送出使用申請，管理者在試算表「人員」表勾選「核准」後即可使用。</p>
     <div id="gbtn"></div>
     <p id="loginMsg" class="login-msg" role="alert"></p>
+    <button class="btn" id="recheckBtn" type="button" hidden>管理者已核准，重新檢查</button>
     <div class="login-demo">
       <button class="btn" id="demoBtn" type="button">示範模式（本機假資料）</button>
       <p class="muted">示範模式不連線、不寫入試算表，資料是隨機產生的假資料，只存在這台裝置。</p>

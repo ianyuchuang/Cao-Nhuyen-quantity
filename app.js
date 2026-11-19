@@ -76,9 +76,10 @@
     return gisReady;
   }
   let afterLogin = null;
-  function showLogin(msg) {
+  function showLogin(msg, forbidden) {
     $('login').hidden = false; $('app').hidden = true;
     $('loginMsg').textContent = msg || '';
+    $('recheckBtn').hidden = !(forbidden && tokenValid());
     if (!CFG.API_URL || !CFG.CLIENT_ID) {
       $('gbtn').innerHTML = '<p class="muted">網站尚未設定 API 網址與 OAuth 用戶端 ID（web/config.js），目前只能使用示範模式。</p>';
       return;
@@ -678,7 +679,7 @@
       loadOutbox();
       ingest(j);
     } catch (e) {
-      if (e.code === 'forbidden') { showLogin(`${e.email || ''} 沒有權限：${e.message || '請向管理者申請權限'}`); return; }
+      if (e.code === 'forbidden') { showLogin(`${e.email || ''} 尚未核准：${e.message || '請管理者在試算表「人員」表勾選「核准」，勾選後重新整理此頁即可使用'}`, true); return; }
       if (e.code === 'auth') { needLogin(e.message); afterLogin = start; return; }
       let pending = 0;
       try { pending = JSON.parse(localStorage.getItem(obKey()) || '[]').length; } catch (x) { /* 忽略 */ }
@@ -712,6 +713,7 @@
 
   function boot() {
     wire();
+    $('recheckBtn').addEventListener('click', () => { if (tokenValid()) start(); else showLogin('登入已過期，請再登入一次。'); });
     $('demoBtn').addEventListener('click', () => { DEMO = true; try { sessionStorage.setItem('demo', '1'); } catch (e) { /* 忽略 */ } start(); });
     const qs = new URLSearchParams(location.search);
     let demoSaved = false;
