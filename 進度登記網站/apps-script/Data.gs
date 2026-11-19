@@ -4,11 +4,12 @@
 
 /** 讀「位置」：只取狀態「有效」；回傳 items（依表中順序）、locs、byId、itemByLv */
 function loadLocations_() {
-  var cached = cacheGetBig_('locs');
-  if (cached) return indexLocations_(cached);
   var sh = sheet_(CFG.SH.LOC);
   var n = sh.getLastRow() - 1;
-  var raw = { items: [], locs: [] };
+  // 快取鍵含列數：「位置」增刪列（例如合併部位）後立即失效；只改數量則最多 2 分鐘後生效（或選單「清除位置快取」）
+  var cached = cacheGetBig_('locs');
+  if (cached && cached.n === n) return indexLocations_(cached);
+  var raw = { n: n, items: [], locs: [] };
   if (n > 0) {
     var v = sh.getRange(2, 1, n, 14).getValues();
     var seenLv = Object.create(null);
@@ -31,7 +32,7 @@ function loadLocations_() {
         kind: kind, q: round_(num_(r[LOC_COL.QTY - 1]), 4), room: trim_(r[LOC_COL.ROOM - 1]) });
     });
   }
-  cachePutBig_('locs', raw, 300);
+  cachePutBig_('locs', raw, 120);
   return indexLocations_(raw);
 }
 
