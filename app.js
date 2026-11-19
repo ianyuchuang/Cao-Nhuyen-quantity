@@ -330,6 +330,11 @@
     qty = Number(qty);
     if (!isFinite(qty) || qty === 0) { toast('請填到貨數量'); return; }
     if (S.date > TODAY) { toast('日期不能晚於今天'); return; }
+    if (GOLIVE && S.date < GOLIVE) { toast('日期不能早於上線日 ' + GOLIVE); return; }
+    const maxQ = Math.max(1, Math.round(o.total * 2 * 10000) / 10000);
+    if (Math.abs(qty) > maxQ) { toast(`單筆進料數量不能超過 ${maxQ}（圖面合計的 2 倍）`); return; }
+    if (qty < 0 && !String(note || '').trim()) { toast('進料數量為負（退料或更正）時，請在備註寫原因'); return; }
+    if (o.mat + qty < -1e-9) { toast(`登記後進料累計會小於 0（目前累計 ${fmt(o.mat)}）`); return; }
     OUTBOX.push({ type: 'material', created: Date.now(), payload: { uuid: uuid(), lv: o.lv, date: S.date, qty, note: note || '' } });
     o.mat += qty; saveOutbox(); render(); flush();
   }
