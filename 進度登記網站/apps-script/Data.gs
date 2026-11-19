@@ -71,6 +71,7 @@ function loadCurrent_() {
 /**
  * 寫回「目前進度」：只寫 G～I（完成%、框、扇）與 K～M（日期、登記人、時間）；
  * J 欄「完成量」是公式，不寫。表中沒有的位置（數量改版新增）附加在最後。
+ * K～M 是整欄讀出再寫回，登記人等文字一律重新套 protect_（讀回時 ' 會被吃掉，不套會變公式）。
  */
 function writeCurrent_(cur, L) {
   var sh = sheet_(CFG.SH.CUR);
@@ -94,12 +95,12 @@ function writeCurrent_(cur, L) {
   });
   if (gi.length) {
     sh.getRange(2, CUR_COL.PCT, gi.length, 3).setValues(gi);
-    sh.getRange(2, CUR_COL.DATE, km.length, 3).setValues(km);
+    sh.getRange(2, CUR_COL.DATE, km.length, 3).setValues(protectRows_(km));
   }
   if (add.length) {
     var start = sh.getLastRow() + 1;
-    sh.getRange(start, 1, add.length, 9).setValues(add.map(function (a) { return a.slice(0, 9); }));
-    sh.getRange(start, CUR_COL.DATE, add.length, 3).setValues(add.map(function (a) { return a.kmv; }));
+    sh.getRange(start, 1, add.length, 9).setValues(protectRows_(add.map(function (a) { return a.slice(0, 9); })));
+    sh.getRange(start, CUR_COL.DATE, add.length, 3).setValues(protectRows_(add.map(function (a) { return a.kmv; })));
   }
 }
 

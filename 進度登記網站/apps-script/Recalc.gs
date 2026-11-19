@@ -177,16 +177,26 @@ function openingMatFull_(it) {
   return CFG.OPENING_MAT_FULL_CATS.indexOf(it.cat) >= 0 || CFG.OPENING_MAT_FULL_LVS.indexOf(it.lv) >= 0;
 }
 
-/** 刪掉某欄等於 value 的列（整張表重寫，保留其他列順序） */
+/**
+ * 刪掉某欄等於 value 的列：用 deleteRows 逐段刪，不把其他列讀出再寫回
+ * （重寫會讓工程師填的原因／備註失去 ' 保護而變成公式）。
+ */
 function removeRowsBy_(sh, width, col, value) {
   var n = sh.getLastRow() - 1;
   if (n <= 0) return 0;
-  var v = sh.getRange(2, 1, n, width).getValues();
-  var keep = v.filter(function (r) { return String(r[col - 1]) !== value; });
-  if (keep.length === v.length) return 0;
-  sh.getRange(2, 1, n, width).clearContent();
-  if (keep.length) sh.getRange(2, 1, keep.length, width).setValues(keep);
-  return v.length - keep.length;
+  var v = sh.getRange(2, col, n, 1).getValues();
+  var blocks = [], start = -1;
+  for (var i = 0; i <= n; i++) {
+    var hit = i < n && String(v[i][0]) === value;
+    if (hit && start < 0) start = i;
+    if (!hit && start >= 0) { blocks.push([start + 2, i - start]); start = -1; }
+  }
+  if (!blocks.length) return 0;
+  // 不能把未凍結的列全部刪光：先在最後補一列空白
+  if (sh.getMaxRows() <= sh.getLastRow()) sh.insertRowsAfter(sh.getMaxRows(), 1);
+  var count = 0;
+  for (var b = blocks.length - 1; b >= 0; b--) { sh.deleteRows(blocks[b][0], blocks[b][1]); count += blocks[b][1]; }
+  return count;
 }
 
 function setOpening_(goLive) {
@@ -263,7 +273,7 @@ function setOpening_(goLive) {
       logSh_append_(rows);
       writeCurrent_(cur, L);
     }
-    if (matRows.length) matSh.getRange(matSh.getLastRow() + 1, 1, matRows.length, MAT_WIDTH).setValues(matRows);
+    if (matRows.length) matSh.getRange(matSh.getLastRow() + 1, 1, matRows.length, MAT_WIDTH).setValues(protectRows_(matRows));
     openingWrites.forEach(function (w) { lay.sh.getRange(w[0], CFG.COL_OPENING).setValue(w[1]); });
     SpreadsheetApp.flush();
     recalcLevels_(L.items.map(function (it) { return it.lv; }));
@@ -274,7 +284,7 @@ function setOpening_(goLive) {
 
 function logSh_append_(rows) {
   var sh = sheet_(CFG.SH.LOG);
-  sh.getRange(sh.getLastRow() + 1, 1, rows.length, LOG_WIDTH).setValues(rows);
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, LOG_WIDTH).setValues(protectRows_(rows));
 }
 
 /**

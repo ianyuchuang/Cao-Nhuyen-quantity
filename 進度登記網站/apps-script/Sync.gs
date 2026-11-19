@@ -30,7 +30,7 @@ function syncFromOfficial() {
     // 只貼格式＋正式版算好的數值：正式版的公式會參照它自己的其他工作表（例如「施工-實際進度 (修訂1版)」），
     // 連公式一起複製會變成 #REF!，所以數值一律從正式版讀取後寫入（讀取不會改動正式版）。
     tmp.getRange(1, 1, R, C).copyTo(main.getRange(1, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-    main.getRange(1, 1, R, C).setValues(src.getRange(1, 1, R, C).getValues());
+    main.getRange(1, 1, R, C).setValues(protectRows_(src.getRange(1, 1, R, C).getValues()));
     main.setFrozenRows(src.getFrozenRows());
     main.setFrozenColumns(src.getFrozenColumns());
     ss.deleteSheet(tmp);
@@ -110,7 +110,7 @@ function realignDaily_(main, snap) {
     daily.getRange(CFG.HEADER_ROWS, CFG.COL_FIRST_DATE, 1, mainDatesRaw.length).setValues([mainDatesRaw])
       .setNumberFormat('m/d');
     // 層級、項目、單位
-    daily.getRange(CFG.HEADER_ROWS + 1, 1, mainA.length, 3).setValues(mainA);
+    daily.getRange(CFG.HEADER_ROWS + 1, 1, mainA.length, 3).setValues(protectRows_(mainA));
     // J 期初＋逐日
     var width = 1 + mainDates.length;
     var block = mainA.map(function (r) {

@@ -2,7 +2,8 @@
  * 身分驗證與權限
  * 1. 前端送來 Google ID token。先在本機檢查格式、aud、exp（擋掉垃圾 token，不浪費 UrlFetch 配額），
  *    再向 Google tokeninfo 驗證 aud（＝「設定」表的 OAuth 用戶端 ID）、簽發者、email 已驗證、未過期。
- *    驗證失敗的 token 負快取 60 秒；每個帳號每分鐘最多 RATE_PER_MIN 次請求。
+ *    驗證失敗的 token 負快取 60 秒；驗證成功的快取到憑證到期；向 Google 驗證全域每分鐘／每小時有上限
+ *    （TOKENINFO_PER_*），擋偽造憑證耗光 UrlFetch 配額。每個帳號每分鐘最多 RATE_PER_MIN 次請求（含未授權者）。
  * 2. 權限來源（「設定」表「權限來源」）：
  *    - 「試算表共用」（預設）：本試算表編輯者（含擁有者）→ editor；檢視者／加註者 → viewer。
  *    - 「人員表」：本試算表編輯者 → editor；「人員」表 D 欄「核准」有勾選的帳號 → viewer。
@@ -34,6 +35,7 @@ function verifyToken_(token) {
     throw apiError_('auth', '登入已過期或憑證無效，請重新登入');
   }
 
+  tokeninfoBudget_(cache);
   var res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token),
     { muteHttpExceptions: true });
   if (res.getResponseCode() !== 200) { cache.put(key, 'BAD', 60); throw apiError_('auth', '登入已過期或憑證無效，請重新登入'); }
@@ -48,9 +50,23 @@ function verifyToken_(token) {
 
   var exp = Number(info.exp);
   var user = { email: String(info.email).toLowerCase(), gname: safeText_(info.name || '', 60) };
-  var ttl = Math.min(CFG.ACL_TTL, exp - now - 5);
+  var ttl = Math.min(21600, exp - now - 5); // 快取到憑證到期（CacheService 上限 6 小時）
   if (ttl > 5) cache.put(key, JSON.stringify(user), ttl);
   return user;
+}
+
+/** 向 Google tokeninfo 驗證的全域次數上限（每分鐘、每小時），超過就請使用者稍後再試 */
+function tokeninfoBudget_(cache) {
+  var t = Date.now();
+  var km = 'ti_m_' + Math.floor(t / 60000), kh = 'ti_h_' + Math.floor(t / 3600000);
+  var got = cache.getAll([km, kh]);
+  var m = Number(got[km]) || 0, h = Number(got[kh]) || 0;
+  if (m >= CFG.TOKENINFO_PER_MIN || h >= CFG.TOKENINFO_PER_HOUR) {
+    console.warn('tokeninfo 驗證次數達上限：本分鐘 ' + m + '、本小時 ' + h);
+    throw apiError_('busy', '登入驗證太頻繁，請稍後再試');
+  }
+  cache.put(km, String(m + 1), 120);
+  cache.put(kh, String(h + 1), 7200);
 }
 
 /** 每個帳號每分鐘請求上限 */
@@ -182,14 +198,16 @@ function displayName_(user) {
 /**
  * 權限來源為「人員表」時，沒有權限的人登入就把帳號寫進「人員」表、「核准」未勾選，
  * 管理者勾選後即可使用（onEdit 立即清快取；最慢 PEOPLE_TTL 秒）。
- * 回傳 'added'（剛加入）、'pending'（已在名單、未勾選）或 ''（不適用）
+ * 回傳 'added'（剛加入）、'pending'（已在名單、未勾選）、'full'（待核准名額已滿）、'busy'（搶不到鎖）或 ''（不適用）
  */
 var MAX_PENDING = 200;
 function registerPending_(user) {
   if (aclSource_() !== 'people') return '';
   if (Object.prototype.hasOwnProperty.call(peopleMap_(), user.email)) return 'pending';
+  var cache = CacheService.getScriptCache(), fullKey = 'pfull_' + sha_(user.email);
+  if (cache.get(fullKey)) return 'full';
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return 'pending';
+  if (!lock.tryLock(5000)) return 'busy';
   try {
     var sh = sheet_(CFG.SH.PEOPLE);
     if (sh.getMaxColumns() < PEOPLE_OK_COL) sh.insertColumnsAfter(sh.getMaxColumns(), PEOPLE_OK_COL - sh.getMaxColumns());
@@ -202,12 +220,12 @@ function registerPending_(user) {
       if (trim_(rows[i][0]).toLowerCase() === user.email) return 'pending';
       if (rows[i][oc - 1] !== true) pending++;
     }
-    if (pending >= MAX_PENDING) return 'pending';
+    if (pending >= MAX_PENDING) { cache.put(fullKey, '1', CFG.PENDING_FULL_TTL); return 'full'; }
     var r = sh.getLastRow() + 1;
     var row = [safeText_(user.email, 120), safeText_(user.gname, 60), '網站登入自動加入 ' + todayStr_()];
     while (row.length < oc - 1) row.push('');
     row.push(false);
-    sh.getRange(r, 1, 1, oc).setValues([row]);
+    sh.getRange(r, 1, 1, oc).setValues(protectRows_([row]));
     try { sh.getRange(r, oc).insertCheckboxes(); } catch (e) { /* 已有勾選框驗證時忽略 */ }
     clearAclCache_();
     return 'added';

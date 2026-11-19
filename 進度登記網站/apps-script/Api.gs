@@ -26,15 +26,17 @@ function doPost(e) {
 function handle_(req) {
   try {
     var user = verifyToken_(req.token);
+    rateLimit_(user.email); // 未授權者也先限流，再做自動加入人員表
     var role = roleOf_(user.email);
     if (!role) {
       var reg = registerPending_(user);
+      if (reg === 'busy') return { ok: false, error: 'busy', message: '系統忙碌，請稍後重新整理此頁' };
       var msg = reg === 'added' ? '已送出使用申請。請管理者在試算表「人員」表勾選你那一列的「核准」，勾選後重新整理此頁即可使用'
         : reg === 'pending' ? '等待管理者核准。請管理者在試算表「人員」表勾選你那一列的「核准」，勾選後重新整理此頁即可使用'
+        : reg === 'full' ? '使用申請名額已滿，系統無法自動送出申請。請直接聯絡管理者把你的 Google 帳號加入「人員」表'
         : '請向管理者申請權限';
       return { ok: false, error: 'forbidden', message: msg, email: user.email };
     }
-    rateLimit_(user.email);
     user.role = role;
     user.name = displayName_(user);
     switch (req.action) {
@@ -169,7 +171,7 @@ function submit_(user, req) {
     });
 
     if (rows.length) {
-      logSh.getRange(logSh.getLastRow() + 1, 1, rows.length, LOG_WIDTH).setValues(rows);
+      logSh.getRange(logSh.getLastRow() + 1, 1, rows.length, LOG_WIDTH).setValues(protectRows_(rows));
       if (cur.dirty) writeCurrent_(cur, L);
       SpreadsheetApp.flush();
       recalcLevels_(Object.keys(levels));
@@ -204,7 +206,7 @@ function material_(user, req) {
     var sh = sheet_(CFG.SH.MAT);
     var seen = uuidSet_(sh, MAT_COL.UUID);
     if (!seen[uuid]) {
-      sh.getRange(sh.getLastRow() + 1, 1, 1, MAT_WIDTH).setValues([[it.lv, it.name, it.unit, date, round_(qty, 4), user.email, new Date(), uuid, safeText_(req.note)]]);
+      sh.getRange(sh.getLastRow() + 1, 1, 1, MAT_WIDTH).setValues(protectRows_([[it.lv, it.name, it.unit, date, round_(qty, 4), user.email, new Date(), uuid, safeText_(req.note)]]));
       SpreadsheetApp.flush();
       recalcLevels_([it.lv]); // 進料佔完成量 50%，到貨當天要計入每日數量
     }

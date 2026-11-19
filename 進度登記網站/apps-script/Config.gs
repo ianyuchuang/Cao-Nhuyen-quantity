@@ -30,6 +30,10 @@ var CFG = {
   COL_FIRST_DATE: 11,    // K 起為日期欄
   ACL_TTL: 600,          // 編輯者／共用名單快取 10 分鐘
   PEOPLE_TTL: 30,        // 人員表快取 30 秒（編輯人員表時 onEdit 也會立即清掉）
+  // 向 Google tokeninfo 驗證的全域上限（擋偽造憑證耗光 UrlFetch 每日配額；驗證成功的憑證快取到到期，不重複驗）
+  TOKENINFO_PER_MIN: 60,
+  TOKENINFO_PER_HOUR: 600,
+  PENDING_FULL_TTL: 600, // 待核准名額已滿時，同一帳號 10 分鐘內直接回覆、不再搶鎖
   OPENING_BY: '系統（期初推估）',
   OPENING_LEVEL: '期初',
   MANAGED_BG: '#ddebf7', // 主表中網站管理層級的 A～C 淺藍
@@ -86,6 +90,13 @@ function safeText_(v, max) {
   var s = trim_(v).replace(/[\u0000-\u001f]/g, ' ').slice(0, max || 200);
   return /^[=+\-@]/.test(s) ? "'" + s : s;
 }
+/**
+ * 寫入試算表前的保護：開頭是 = + - @ 的字串前面加 '，讓試算表一律當文字。
+ * 試算表讀回時會吃掉這個 '，所以「讀出再寫回」的地方都要再套一次（否則文字會變成公式）。
+ * 已經以 ' 開頭的字串不再加。
+ */
+function protect_(v) { return typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v; }
+function protectRows_(rows) { return rows.map(function (r) { return r.map(protect_); }); }
 function num_(v) { var n = Number(v); return isFinite(n) ? n : 0; }
 function round_(x, d) { var k = Math.pow(10, d); return Math.round((x + (x >= 0 ? 1e-12 : -1e-12)) * k) / k; }
 /** 試算表的完成% 欄是百分比格式：存 0～1 的小數；程式內部與 API 一律用 0～100 */

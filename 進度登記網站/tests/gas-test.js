@@ -29,6 +29,14 @@ class Sheet {
   get(r, c) { const row = this.d[r - 1]; const v = row ? row[c - 1] : undefined; return v === undefined || v === null ? '' : v; }
   set(r, c, v) { while (this.d.length < r) this.d.push([]); this.d[r - 1][c - 1] = v; if (c > this.maxCols) this.maxCols = c; }
 }
+// 試算表寫入字串的行為：' 開頭存成文字（讀回時沒有 '）；= + - @ 開頭（且不是數字）會被當成公式
+const FORMULAS = [];
+function sheetParse(sh, r, c, x) {
+  if (typeof x !== 'string') return x;
+  if (x.startsWith("'")) return x.slice(1);
+  if (/^[=+\-@]/.test(x) && !isFinite(Number(x))) { FORMULAS.push(sh.name + '!R' + r + 'C' + c + ' ' + x); return '#公式#' + x; }
+  return x;
+}
 class Range {
   constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
   getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); o.push(row); } return o; }
@@ -37,10 +45,11 @@ class Range {
       row.forEach((x, j) => {
         // 模擬試算表把 yyyy-MM-dd 文字轉成日期
         if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) x = tw(x);
+        x = sheetParse(this.sh, this.r + i, this.c + j, x);
         this.sh.set(this.r + i, this.c + j, x);
       }); }); return this;
   }
-  setValue(x) { this.sh.set(this.r, this.c, x); return this; }
+  setValue(x) { this.sh.set(this.r, this.c, sheetParse(this.sh, this.r, this.c, x)); return this; }
   getValue() { return this.sh.get(this.r, this.c); }
   setFormula(f) { this.sh.f[this.r + ',' + this.c] = f; return this; }
   clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh.set(this.r + i, this.c + j, ''); return this; }
@@ -56,8 +65,8 @@ function makeSS(sheets) {
     toast: () => {}, setActiveSheet() {}, moveActiveSheet() {} };
   return ss;
 }
-const cache = new Map();
-const CacheMock = { getScriptCache: () => ({ get: k => cache.has(k) ? cache.get(k) : null, put: (k, v) => cache.set(k, v), putAll: m => Object.keys(m).forEach(k => cache.set(k, m[k])),
+const cache = new Map(); const cacheTtl = new Map();
+const CacheMock = { getScriptCache: () => ({ get: k => cache.has(k) ? cache.get(k) : null, put: (k, v, t) => { cache.set(k, v); cacheTtl.set(k, t); }, putAll: m => Object.keys(m).forEach(k => cache.set(k, m[k])),
   getAll: ks => { const o = {}; ks.forEach(k => { if (cache.has(k)) o[k] = cache.get(k); }); return o; }, remove: k => cache.delete(k), removeAll: ks => ks.forEach(k => cache.delete(k)) }) };
 
 // ---------- 測試資料 ----------
@@ -97,6 +106,8 @@ class FakeDate extends RealDate { constructor(...a) { if (a.length) super(...a);
 const tokensRaw = { tokE: { aud: 'CID.apps.googleusercontent.com', iss: 'https://accounts.google.com', email: 'Boss@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600), name: 'Boss' },
   tokV: { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) },
   tokX: { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'stranger@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) },
+  tokY: { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'late@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) },
+  tokZ: { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'nobody@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) },
   tokBadAud: { aud: 'OTHER', iss: 'accounts.google.com', email: 'eng@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) } };
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const tokens = {}; const T = {};
@@ -214,7 +225,7 @@ ok(fetches === 0, 'aud 不符的 token 在本機就擋下，負快取');
 ctx.UrlFetchApp.fetch = of;
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-20', reason: '=IMPORTXML("http://x","//a")', items: [{ uuid: 'INJ-00001', id: 'A.1|1F|101', p: 10, old: { p: 50 }, note: '+SUM(A1)' }] });
 const last = log.d[log.getLastRow() - 1];
-ok(r.saved.length === 1 && last[15].startsWith("'=") && last[16].startsWith("'+"), '原因／備註以 = + 開頭時存成文字');
+ok(r.saved.length === 1 && last[15] === '=IMPORTXML("http://x","//a")' && last[16] === '+SUM(A1)' && FORMULAS.length === 0, '原因／備註以 = + 開頭時存成文字（沒有變公式）');
 ok(call({ action: 'submit', token: T.tokV, date: '2026-11-20', items: [{ uuid: '=1+1', id: 'A.1|1F|101', p: 10 }] }).rejected.length === 1, 'UUID 格式錯誤 → rejected');
 ok(call({ action: 'submit', token: T.tokV, date: '2026-11-20', items: [{ uuid: 'PROTO-0001', id: 'constructor', p: 10 }] }).rejected.length === 1, '原型鍵位置 ID → rejected');
 ok(call({ action: 'material', token: T.tokV, uuid: 'PROTO-0002', lv: '__proto__', date: '2026-11-20', qty: 1 }).error === 'bad_request', '原型鍵層級 → bad_request');
@@ -275,4 +286,66 @@ ok(openMats.length === 3 && openLogs.length === 5, '重設期初先刪舊期初�
 ok(op2.detail['A.1'].mat === 100 && op2.detail['A.1'].work === 0 && openMats.find(r => r[0] === 'A.1')[4] === 100, '例外層級：期初總 30% 但進料比例＝100%（施作 0%）');
 ok(daily.get(drow('A.1'), 10) === 50, '例外層級 J＝100 × 50% × 100% = 50（高於正式版已用 30，差異出現在 I 欄）');
 ok(mat.d.some(r => r[0] === 'A.1' && r[4] === 120), '重設期初不影響工程師登記的進料');
+// ---------- 10. Fable 第 1 項：讀出再寫回不會讓文字變公式 ----------
+FakeDate.now = () => NOW + 600000; cache.clear();
+FORMULAS.length = 0;
+people.d.push(['eng2@x.com', '=HYPERLINK("http://evil","點我")', '', true]); cache.clear();
+tokens['h.' + b64({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) }) + '.sig_e2'] = { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) };
+const tokE2 = Object.keys(tokens).find(k => k.endsWith('.sig_e2'));
+r = call({ action: 'submit', token: tokE2, date: '2026-11-20', reason: '=TEXTJOIN(",",1,施工!D4:F9)', items: [{ uuid: 'INJ-00010', id: 'A.1|1F|102', p: 5, note: '@x' }] });
+ok(r.ok && r.saved.length === 1, '名稱、原因、備註都以 = @ 開頭的登記寫入成功');
+r = call({ action: 'material', token: tokE2, uuid: 'INJ-00011', lv: 'A.2', date: '2026-11-20', qty: 1, note: '=1+2' });
+ok(r.ok, '進料備註以 = 開頭寫入成功');
+call({ action: 'submit', token: T.tokE, date: '2026-11-20', items: [{ uuid: 'INJ-00012', id: 'A.2|1F|1F-D101', f: 100, s: 0 }] });
+ok(FORMULAS.length === 0, '其他人登記（目前進度 K～M 整欄重寫）後沒有任何儲存格變成公式');
+ctx.setOpening_(GOLIVE);
+ok(FORMULAS.length === 0, '重設期初（刪舊期初列）後沒有任何儲存格變成公式');
+ctx.rebuildCurrent_();
+ok(FORMULAS.length === 0, '從進度紀錄重建目前進度後沒有任何儲存格變成公式');
+const injLog = log.d.find(x => x[14] === 'INJ-00010');
+const injMat = mat.d.find(x => x[7] === 'INJ-00011');
+const injCur = cur.d.find(x => x[5] === 'A.1|1F|102');
+ok(injLog && injLog[15] === '=TEXTJOIN(",",1,施工!D4:F9)' && injLog[16] === '@x', '進度紀錄的原因／備註仍是原文字');
+ok(injMat && injMat[8] === '=1+2', '進料備註仍是原文字');
+ok(injCur && injCur[11] === '=HYPERLINK("http://evil","點我")', '目前進度登記人（顯示名稱）仍是原文字');
+const hx = call({ action: 'history', token: tokE2, ids: ['A.1|1F|102'], lv: 'A.1' });
+ok(hx.records.some(x => x.reason === '=TEXTJOIN(",",1,施工!D4:F9)'), 'history 回傳原文字，不是公式結果');
+ok(ctx.protect_('=x') === "'=x" && ctx.protect_("'=x") === "'=x" && ctx.protect_('-') === "'-" && ctx.protect_(5) === 5 && ctx.protect_('abc') === 'abc', 'protect_：= + - @ 開頭加 \'，已有 \' 不重複');
+
+// ---------- 11. Fable 第 2 項：只有勾選 TRUE 才可用 ----------
+const e2row = people.d.find(x => x[0] === 'eng2@x.com');
+for (const v of ['TRUE', 'true', 1, '核准', 'v']) { e2row[3] = v; cache.clear(); ok(call({ action: 'bootstrap', token: tokE2 }).error === 'forbidden', '核准欄為 ' + JSON.stringify(v) + '（不是勾選）→ 不可用'); }
+e2row[3] = true; cache.clear();
+ok(call({ action: 'bootstrap', token: tokE2 }).user.role === 'viewer', '核准欄勾選 TRUE → 可用');
+
+// ---------- 12. Fable 第 3 項：tokeninfo 全域上限、成功快取到到期 ----------
+ok(cacheTtl.get('tok_' + ctx.sha_(tokE2)) === 3600 - 600 - 5, '驗證成功的憑證快取到到期（剩 50 分鐘就快取 50 分鐘），不是 10 分鐘');
+FakeDate.now = () => NOW + 1200000; cache.clear();
+const forged = i => 'h.' + b64({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'f' + i + '@x.com', exp: String(NOW / 1000 + 3600) }) + '.sig_forged' + i;
+let tfN = 0; const tiRealFetch = ctx.UrlFetchApp.fetch; ctx.UrlFetchApp.fetch = u => { tfN++; return tiRealFetch(u); };
+const fr = []; for (let i = 0; i < 70; i++) fr.push(call({ action: 'bootstrap', token: forged(i) }));
+ok(tfN === 60 && fr.slice(0, 60).every(x => x.error === 'auth') && fr.slice(60).every(x => x.error === 'busy'), '偽造憑證：每分鐘最多向 Google 驗證 60 次，之後回 busy');
+cache.set('tok_' + ctx.sha_(tokE2), JSON.stringify({ email: 'eng2@x.com', gname: '' }));
+ok(call({ action: 'bootstrap', token: tokE2 }).ok, '已驗證過（快取中）的憑證不受全域上限影響');
+FakeDate.now = () => NOW + 1200000 + 60000 * 2;
+cache.set('ti_h_' + Math.floor((NOW + 1200000 + 120000) / 3600000), '600');
+const tfBefore = tfN;
+ok(call({ action: 'bootstrap', token: forged(99) }).error === 'busy' && tfN === tfBefore, '每小時上限 600 次：超過就不再向 Google 驗證');
+ctx.UrlFetchApp.fetch = tiRealFetch;
+
+// ---------- 13. Fable 第 4 項：未授權者先限流；名額滿訊息正確 ----------
+FakeDate.now = () => NOW + 1500000; cache.clear();
+let busyX = 0; for (let i = 0; i < 65; i++) if (call({ action: 'bootstrap', token: T.tokX }).error === 'busy') busyX++;
+ok(busyX > 0, '未授權者每分鐘超過 60 次也會被限流');
+FakeDate.now = () => NOW + 1800000; cache.clear();
+ctx.MAX_PENDING = 1;
+const nPeople = people.d.length;
+const rf = call({ action: 'bootstrap', token: T.tokY });
+ok(rf.error === 'forbidden' && /名額已滿/.test(rf.message) && !/等待/.test(rf.message) && people.d.length === nPeople, '待核准名額滿：不加入人員表，訊息說名額已滿（不是等待核准）');
+let locks = 0; const realLock = ctx.LockService.getScriptLock; ctx.LockService.getScriptLock = () => { locks++; return realLock(); };
+ok(/名額已滿/.test(call({ action: 'bootstrap', token: T.tokY }).message) && locks === 0, '名額滿後同一帳號短時間內直接回覆，不再搶鎖');
+ctx.LockService.getScriptLock = () => ({ tryLock: () => false, waitLock() {}, releaseLock() {} });
+ok(call({ action: 'bootstrap', token: T.tokZ }).error === 'busy', '搶不到鎖 → busy（不謊稱等待核准）');
+ctx.LockService.getScriptLock = realLock; ctx.MAX_PENDING = 200;
+
 console.log('\n全部通過');
