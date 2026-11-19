@@ -1,0 +1,726 @@
+<title>工項進度登記規劃</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* 版面概念：施工圖面的藍圖底色＋圖框格線，規劃說明在上、五個可操作的版面放在「圖框」內，像一套圖說 */
+:root{
+  --bg:#f3f5f7; --paper:#ffffff; --ink:#17212b; --muted:#5b6775; --line:#d5dbe2; --line2:#e7ebef;
+  --accent:#1d5fa8; --accent-soft:#e3edf8; --amber:#c77a0a; --amber-soft:#fbf0dc;
+  --ok:#2e7d4f; --ok-soft:#e2f2e8; --warn:#b4560f; --bad:#b3261e;
+  --h0:#eef1f4; --h1:#d6e6f5; --h2:#a9cbea; --h3:#6fa6da; --h4:#2f7dc4; --h5:#1b5a96;
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10161c; --paper:#18212a; --ink:#e4e9ee; --muted:#97a3b0; --line:#2e3a46; --line2:#24303b;
+  --accent:#6aa8e8; --accent-soft:#1c3045; --amber:#e3a443; --amber-soft:#3a2c14;
+  --ok:#62c08a; --ok-soft:#173527; --warn:#e39a5a; --bad:#ef7a72;
+  --h0:#202a34; --h1:#1d3650; --h2:#22507a; --h3:#2c6aa3; --h4:#3f86c8; --h5:#74b0ea; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161c; --paper:#18212a; --ink:#e4e9ee; --muted:#97a3b0; --line:#2e3a46; --line2:#24303b;
+  --accent:#6aa8e8; --accent-soft:#1c3045; --amber:#e3a443; --amber-soft:#3a2c14;
+  --ok:#62c08a; --ok-soft:#173527; --warn:#e39a5a; --bad:#ef7a72;
+  --h0:#202a34; --h1:#1d3650; --h2:#22507a; --h3:#2c6aa3; --h4:#3f86c8; --h5:#74b0ea; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.65;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:40px}
+h1,h2,h3{text-wrap:balance;line-height:1.3;margin:0}
+h1{font-size:1.9rem;font-weight:700;letter-spacing:.01em}
+h2{font-size:1.3rem;font-weight:700;display:flex;gap:.6em;align-items:baseline}
+h2 .no{font-family:var(--mono);font-size:.85rem;color:var(--accent);font-weight:600}
+h3{font-size:1.02rem;font-weight:700}
+p{margin:0;max-width:72ch}
+.mono,code{font-family:var(--mono);font-variant-numeric:tabular-nums}
+code{font-size:.86em;background:var(--line2);padding:1px 5px;border-radius:3px}
+.muted{color:var(--muted)}
+.sec{display:grid;gap:16px}
+.lede{font-size:1.02rem;color:var(--muted)}
+.titleblock{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:16px}
+.titleblock .meta{font-family:var(--mono);font-size:.78rem;color:var(--muted);text-align:right;line-height:1.6}
+@media (max-width:700px){.titleblock{grid-template-columns:1fr}.titleblock .meta{text-align:left}}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
+.stats div{background:var(--paper);padding:12px 14px}
+.stats b{display:block;font-family:var(--mono);font-size:1.5rem;font-weight:600;color:var(--accent)}
+.stats span{font-size:.82rem;color:var(--muted)}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tbl{overflow-x:auto;border:1px solid var(--line);background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:top}
+th{font-weight:500;color:var(--muted);background:var(--bg);white-space:nowrap;font-size:.8rem}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:820px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--paper);border:1px solid var(--line);padding:16px 18px;display:grid;gap:10px;min-width:0}
+ul.clean{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.9rem}
+.flow span{background:var(--paper);border:1px solid var(--line);padding:4px 10px}
+.flow span.k{border-color:var(--accent);color:var(--accent);font-weight:500}
+.flow i{font-style:normal;color:var(--muted)}
+.formula{font-family:var(--mono);font-size:.86rem;background:var(--paper);border-left:3px solid var(--accent);padding:10px 14px;line-height:1.8;overflow-x:auto;white-space:pre}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:2px;background:var(--line2);color:var(--muted);white-space:nowrap}
+.tag.a{background:var(--accent-soft);color:var(--accent)}
+.tag.w{background:var(--amber-soft);color:var(--amber)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.q-list{counter-reset:q;display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.q-list li{background:var(--paper);border:1px solid var(--line);padding:10px 14px 10px 46px;position:relative}
+.q-list li::before{counter-increment:q;content:counter(q);position:absolute;left:12px;top:10px;font-family:var(--mono);font-weight:600;color:var(--amber);width:24px;text-align:center}
+.q-list b{font-weight:700}
+/* ---------- 版面切換 ---------- */
+.tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--line)}
+.tabs button{font:inherit;background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;cursor:pointer;color:var(--muted);text-align:left;display:grid;line-height:1.3}
+.tabs button small{font-family:var(--mono);font-size:.72rem}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:700}
+.tabs button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.layout-desc{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:14px;font-size:.88rem}
+.layout-desc h4{margin:0 0 4px;font-size:.8rem;color:var(--muted);font-weight:500;letter-spacing:.04em}
+@media (max-width:820px){.layout-desc{grid-template-columns:1fr}}
+.stage{background:repeating-linear-gradient(0deg,transparent 0 23px,var(--line2) 23px 24px),repeating-linear-gradient(90deg,transparent 0 23px,var(--line2) 23px 24px),var(--bg);border:1px solid var(--line);padding:22px;overflow-x:auto}
+.demo-note{font-size:.78rem;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+/* 共用 UI 元件（mockup 內） */
+.app{background:var(--paper);border:1px solid var(--line);box-shadow:0 6px 24px rgba(20,35,50,.10);font-size:.86rem;color:var(--ink)}
+.app .bar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
+.app .bar b{font-size:.9rem}
+.app .bar .sp{flex:1}
+.who{font-size:.75rem;color:var(--muted)}
+.pbar{height:6px;background:var(--h0);border-radius:3px;overflow:hidden;min-width:40px}
+.pbar i{display:block;height:100%;background:var(--accent)}
+.pbar.done i{background:var(--ok)}
+.pct{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600}
+.qty{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.btn{font:inherit;font-size:.8rem;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:4px 10px;cursor:pointer;border-radius:3px}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:500}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chips button{font:inherit;font-family:var(--mono);font-size:.75rem;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:3px 8px;cursor:pointer;border-radius:3px;min-width:38px}
+.chips button.on{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+input.pin{font:inherit;font-family:var(--mono);width:62px;padding:3px 6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);text-align:right;border-radius:3px}
+select.sel{font:inherit;font-size:.82rem;padding:4px 6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:3px;max-width:100%}
+.rowbtn{all:unset;box-sizing:border-box;display:grid;width:100%;cursor:pointer;padding:9px 12px;border-bottom:1px solid var(--line2);gap:4px}
+.rowbtn:hover{background:var(--accent-soft)}
+.rowbtn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.rowbtn .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.rowbtn .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code{font-family:var(--mono);font-weight:600;color:var(--accent);margin-right:6px}
+.kind{font-size:.68rem;padding:0 5px;border:1px solid var(--line);color:var(--muted);border-radius:2px;margin-left:4px;white-space:nowrap}
+/* L1 手機 */
+.phone{width:360px;max-width:100%;margin:0 auto;border:10px solid #2a333c;border-radius:30px;overflow:hidden;background:var(--paper);box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.phone .scr{height:620px;display:flex;flex-direction:column}
+.phone .hd{padding:10px 14px 8px;border-bottom:1px solid var(--line);background:var(--bg)}
+.phone .crumb{font-size:.72rem;color:var(--muted);display:flex;gap:4px;flex-wrap:wrap}
+.phone .crumb button{all:unset;cursor:pointer;color:var(--accent)}
+.phone .ttl{font-weight:700;font-size:1rem;display:flex;gap:8px;align-items:center}
+.phone .back{all:unset;cursor:pointer;font-size:1.2rem;color:var(--accent);padding:0 4px}
+.phone .body{flex:1;overflow-y:auto}
+.phone .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.phone .tile{all:unset;box-sizing:border-box;cursor:pointer;border:1px solid var(--line);padding:10px;display:grid;gap:6px;border-radius:6px;background:var(--paper)}
+.phone .tile:hover{border-color:var(--accent)}
+.phone .tile b{font-size:.92rem}
+.phone .room{padding:10px 12px;border-bottom:1px solid var(--line2);display:grid;gap:6px}
+.phone .room .top{display:flex;justify-content:space-between;gap:8px}
+.phone .ft{border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;align-items:center;background:var(--bg)}
+.phone .ft .sp{flex:1;font-size:.75rem;color:var(--muted)}
+.datepick{font-size:.72rem;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:4px}
+/* L2 三欄 */
+.l2{display:grid;grid-template-columns:230px minmax(0,1fr) 270px;height:560px;min-width:900px}
+.l2 .col{overflow-y:auto;border-right:1px solid var(--line);min-width:0}
+.l2 .col:last-child{border-right:0}
+.l2 details{border-bottom:1px solid var(--line2)}
+.l2 summary{cursor:pointer;padding:8px 12px;font-weight:500;display:flex;justify-content:space-between;gap:6px}
+.l2 summary span{font-size:.72rem;color:var(--muted);font-weight:400}
+.l2 .it{all:unset;box-sizing:border-box;display:flex;gap:6px;width:100%;padding:5px 12px 5px 22px;cursor:pointer;font-size:.8rem;align-items:center}
+.l2 .it:hover{background:var(--accent-soft)}
+.l2 .it.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.l2 .it .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.flchips{display:flex;gap:4px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)}
+.flchips button{font:inherit;font-size:.75rem;font-family:var(--mono);border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:3px 7px;cursor:pointer;border-radius:3px;display:grid;line-height:1.2;text-align:center}
+.flchips button small{font-size:.62rem;color:var(--muted)}
+.flchips button.on{border-color:var(--accent);background:var(--accent-soft)}
+.l2 table td,.l3 table td{padding:6px 10px}
+.l2 tr.sel td{background:var(--accent-soft)}
+.l2 tr{cursor:pointer}
+.detail{padding:14px;display:grid;gap:12px;align-content:start}
+.detail .big{font-family:var(--mono);font-size:1.6rem;font-weight:600}
+.detail input[type=range]{width:100%;accent-color:var(--accent)}
+.hist{font-size:.76rem;display:grid;gap:4px;border-top:1px solid var(--line2);padding-top:8px}
+.hist div{display:flex;justify-content:space-between;gap:6px;color:var(--muted)}
+.photo{border:1px dashed var(--line);padding:14px;text-align:center;color:var(--muted);font-size:.76rem}
+textarea.note{font:inherit;font-size:.8rem;width:100%;min-height:52px;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:6px;border-radius:3px;resize:vertical}
+/* L3 試算表 */
+.l3{min-width:880px}
+.l3 .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.l3 .sheet{max-height:470px;overflow:auto}
+.l3 thead th{position:sticky;top:0;z-index:1}
+.l3 tr.fl td{background:var(--bg);font-weight:700;font-family:var(--mono)}
+.l3 td.cell{padding:3px 6px}
+.l3 input.pin{width:56px}
+/* L4 磚塊 */
+.l4{min-width:760px}
+.l4 .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.l4 .canvas{position:relative;padding:12px;display:flex;flex-wrap:wrap;gap:4px;min-height:420px;align-content:flex-start;background:repeating-linear-gradient(0deg,transparent 0 15px,var(--line2) 15px 16px),repeating-linear-gradient(90deg,transparent 0 15px,var(--line2) 15px 16px)}
+.blk{all:unset;box-sizing:border-box;cursor:pointer;border:1.5px solid var(--ink);padding:5px 6px;display:flex;flex-direction:column;justify-content:space-between;min-height:62px;font-size:.72rem;line-height:1.25;overflow:hidden;position:relative}
+.blk:hover,.blk:focus-visible{outline:2px solid var(--amber);outline-offset:1px;z-index:2}
+.blk b{font-family:var(--mono);font-size:.78rem}
+.blk .p{font-family:var(--mono);font-weight:600;font-size:.82rem}
+.blk.on{outline:3px solid var(--amber)}
+.pop{position:absolute;z-index:5;background:var(--paper);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.2);padding:12px;width:250px;display:grid;gap:8px}
+.legend{display:flex;gap:2px;align-items:center;font-size:.7rem;color:var(--muted)}
+.legend i{display:block;width:22px;height:10px}
+/* L5 熱力圖 */
+.l5{min-width:900px;position:relative;overflow:hidden}
+.l5 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.l5 .kpis div{background:var(--paper);padding:10px 14px}
+.l5 .kpis b{font-family:var(--mono);font-size:1.25rem;display:block}
+.l5 .kpis span{font-size:.72rem;color:var(--muted)}
+.l5 .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px}
+.hm{overflow:auto;max-height:420px;padding:0 14px 14px}
+.hm table{font-size:.76rem;width:auto}
+.hm th,.hm td{padding:0;border:0}
+.hm th{background:none;padding:3px 4px;font-family:var(--mono);font-size:.7rem;text-align:center}
+.hm th.rh{text-align:left;padding-right:10px;font-family:var(--font);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;background:var(--paper);z-index:1}
+.hm td button{all:unset;box-sizing:border-box;display:block;width:46px;height:28px;margin:1px;text-align:center;line-height:28px;font-family:var(--mono);font-size:.7rem;cursor:pointer}
+.hm td button:hover,.hm td button:focus-visible{outline:2px solid var(--amber);outline-offset:-1px}
+.hm td .na{display:block;width:46px;height:28px;margin:1px;background:repeating-linear-gradient(45deg,transparent 0 4px,var(--line2) 4px 5px)}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:360px;background:var(--paper);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .2s}
+.drawer.open{transform:none}
+.drawer .dh{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:start}
+.drawer .db{flex:1;overflow-y:auto}
+@media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+.review{display:grid;gap:10px}
+.rv{background:var(--paper);border:1px solid var(--line);padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.rv .lv{grid-row:span 2}
+.rv p{font-size:.88rem}
+.footer{font-size:.78rem;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+/* ---- 第二版補充 ---- */
+.phone .chips{gap:6px}
+.phone .chips button{min-width:48px;height:44px;font-size:.88rem}
+.phone input.pin{height:44px;width:72px;font-size:.95rem}
+.phone .codeRow{padding:12px;border-bottom:1px solid var(--line2);display:grid;gap:8px}
+.phone .codeRow .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.phone .codeRow .area{font-family:var(--mono);font-size:1.05rem;font-weight:600;white-space:nowrap}
+.phone .codeRow.changed{background:var(--amber-soft)}
+.chips button.draft{background:var(--amber);border-color:var(--amber);color:var(--paper)}
+.search{padding:8px 12px;border-bottom:1px solid var(--line2)}
+.search input{font:inherit;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink)}
+.codes{display:flex;gap:3px;flex-wrap:wrap}
+.codes span{font-family:var(--mono);font-size:.68rem;padding:0 4px;border:1px solid var(--line);border-radius:2px;color:var(--muted)}
+.codes span.ok{border-color:var(--ok);color:var(--ok)}
+.l2 .tree{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;width:100%;padding:5px 12px 5px 22px;cursor:pointer;font-size:.8rem;font-family:var(--mono)}
+.l2 .tree:hover{background:var(--accent-soft)}
+.l2 .tree.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.l2 td button.lnk{all:unset;cursor:pointer;font-family:var(--mono);font-weight:600;color:var(--accent)}
+.l2 td button.lnk:focus-visible{outline:2px solid var(--accent)}
+.dcode{display:grid;gap:4px;padding:8px 0;border-bottom:1px solid var(--line2)}
+.dcode .top{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.mx th.cc{text-align:center;white-space:nowrap}
+.mx th.cc small{display:block;font-weight:400;font-size:.66rem}
+.mx td.cell{text-align:center;padding:3px 4px}
+.mx td.cell small{display:block;font-family:var(--mono);font-size:.64rem;color:var(--muted)}
+.mx td.na{color:var(--line);text-align:center}
+.mx input.pin{width:54px}
+.mx tfoot td{background:var(--bg);font-family:var(--mono);font-size:.76rem;text-align:center}
+.hl{box-shadow:inset 3px 0 0 var(--amber);background:var(--amber-soft)}
+.diffbad{color:var(--bad);font-weight:600}
+.cf{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--amber-soft);border-bottom:1px solid var(--amber);font-size:.82rem}
+.cf span{flex:1;min-width:200px}
+.bulk{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line2);font-size:.75rem;color:var(--muted)}
+.bulk .chips button{min-width:34px;height:auto}
+.phone .bulk .chips button{min-width:40px;height:34px}
+.tg{display:flex;gap:6px;flex-wrap:wrap}
+.tg button{font:inherit;font-size:.78rem;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:4px 10px;cursor:pointer;border-radius:3px;min-height:34px}
+.phone .tg button{min-height:44px;padding:4px 14px}
+.tg button.on{background:var(--ok);border-color:var(--ok);color:var(--paper)}
+.tg button.draft{background:var(--amber);border-color:var(--amber);color:var(--paper)}
+.mat{display:grid;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line2)}
+.mat .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.mat .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.75rem}
+.mat input.pin{width:90px}
+.dec td:first-child{font-family:var(--mono);font-weight:600;color:var(--accent);white-space:nowrap}
+</style>
+
+<div class="wrap">
+<header class="titleblock">
+  <div style="display:grid;gap:8px">
+    <span class="tag a" style="justify-self:start">規劃設計稿・第七版</span>
+    <h1>工項進度登記網站</h1>
+    <p class="lede">工程師依「工項 → 樓層 → 房間 → 代號細項」找到要登記的位置，看到該代號在這個房間的面積，填完成百分比；也可以一次填整層或整間。系統以圖面數量加權彙總，直接換算成每日施工內容表的使用數量。</p>
+  </div>
+  <div class="meta">高雄軟體園區第二園區第一棟大樓<br>數量：各工項數量計算表（2026-11-18）<br>規劃：2026-11-19・已納入 Fable 5.2 審查與你的 10 項決定<br>網頁：GitHub Pages・資料：試算表「工項進度登記」・Google 帳號登入</div>
+</header>
+
+<section class="sec">
+  <h2><span class="no">1</span>資料規模</h2>
+  <div class="stats" id="stats"></div>
+  <div class="tbl"><table id="catTable"><thead><tr><th>工項</th><th class="n">代號</th><th class="n">房間／組</th><th class="n">登記筆數</th><th>單位</th><th>施作細項</th><th>資料來源</th></tr></thead><tbody></tbody></table></div>
+  <p class="muted" style="font-size:.82rem">「登記筆數」是最小的登記單位：一般工項是「房間 × 代號」，門窗是「每一樘」，比例分配的數量（欄杆樓梯扶手、防水筏基、油漆樑等）合併成每個代號一筆「不分樓層」。同一房間同一代號在計算式有多列時合併成一筆。</p>
+</section>
+
+<section class="sec">
+  <h2><span class="no">2</span>操作流程</h2>
+  <div class="flow"><span class="k">工項</span><i>→</i><span class="k">樓層</span><i>→</i><span class="k">房間</span><i>→</i><span class="k">代號細項</span><i>→</i><span>面積（m²／m／樘）</span><i>→</i><span>填完成 %</span><i>→</i><span>儲存</span></div>
+  <div class="tbl"><table>
+    <tr><th>在哪一層填</th><th>做什麼</th><th>例子</th></tr>
+    <tr><td>樓層</td><td>整層所有房間、所有代號一次設成同一個 %</td><td>天花板 2F 整層 100%</td></tr>
+    <tr><td>房間</td><td>這間房的所有代號一次設成同一個 %</td><td>天花板 2F 213 整間 50%</td></tr>
+    <tr><td>代號細項</td><td>單一代號在這間房的 %（門窗則是單一樘的門框、門扇）</td><td>2F 213 的 C12 75%</td></tr>
+    <tr><td>代號層</td><td>進料（整批填到貨數量）、不分樓層的比例分配數量</td><td>F6 今日進料 1,200 m²；欄杆 a型 40%</td></tr>
+  </table></div>
+  <p style="font-size:.88rem">在上層填寫會覆蓋底下全部；底下已有不同的值時，先提示「幾筆原本是其他值」，確認後才覆蓋。門窗沒有房號，房間這一層改用代號分組（例如 2F 的 D10b 共 7 樘）。</p>
+  <div class="cols2">
+    <div class="card">
+      <h3>舉例：天花板 → 2F → 213 梯廳兼排煙室</h3>
+      <div class="tbl"><table id="exTable"></table></div>
+      <p class="muted" style="font-size:.82rem">房間完成% 依面積加權；單位不同時（例如油漆的 m² 與踢腳 m）不加權，改顯示完成幾筆。</p>
+    </div>
+    <div class="card">
+      <h3>Google 試算表的工作表</h3>
+      <p style="font-size:.84rem">主表「施工-實際進度」與每日施工內容 CSV <b>欄位、列順序完全相同</b>；其他明細工作表的前三欄一律是 <b>層級、項目、單位</b>，文字照 CSV 原樣，用「層級」對回主表（詳見 7.2）。</p>
+      <div class="tbl"><table>
+        <tr><th>工作表</th><th>欄位</th><th>誰寫入</th></tr>
+        <tr><td><b>施工-實際進度</b></td><td>同 CSV：天氣 2 列、表頭列，層級、項目、單位、單價、數量、複價、使用數量、剩餘數量、執行率、已使用、逐日欄（2026/4/8 起）</td><td>正式版的鏡像，只讀同步；網站不寫</td></tr>
+        <tr><td>位置</td><td>層級、項目、單位、樓層、房號／標籤序號、空間名稱、類型（房間／部位／單樘／不分樓層）、圖面數量、位置 ID、數量版本、狀態</td><td>匯入程式</td></tr>
+        <tr><td>進度紀錄</td><td>層級、項目、單位、樓層、房號／標籤序號、細項（門框／門扇）、完成 %、舊值、完成量、施工日期、填寫層級、登記人、時間戳、UUID、原因、備註；只新增不修改</td><td>Apps Script</td></tr>
+        <tr><td>目前進度</td><td>層級、項目、單位、樓層、房號／標籤序號、最新完成 %（門窗為框、扇）、完成量、最後施工日期、最後登記人</td><td>Apps Script</td></tr>
+        <tr><td>分層進度</td><td>列與主表相同（層級、項目、單位），欄為 B3F～屋突層與代號層，每格是該層完成 %</td><td>Apps Script</td></tr>
+        <tr><td>進料</td><td>層級、項目、單位、日期、到貨數量、登記人、時間戳、UUID、備註</td><td>Apps Script</td></tr>
+        <tr><td>人員</td><td>Google 帳號、顯示名稱、負責工項（選填）；權限本身以試算表共用為準</td><td>主任</td></tr>
+        <tr><td>設定</td><td>上線日、數量版本、網站網址、OAuth 用戶端 ID</td><td>主任</td></tr>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2><span class="no">3</span>計算規則</h2>
+  <div class="cols2">
+    <div class="card">
+      <h3>完成量與彙總</h3>
+      <div class="formula">位置完成量 = 圖面數量 × 完成%
+單樘完成%   = 框 60% × 框完成 + 扇 40% × 扇完成
+房間完成%   = Σ位置完成量 ÷ Σ圖面數量（同單位才合併）
+代號完成%   = 該代號 Σ完成量 ÷ 該代號圖面合計
+累計(D)     = 每個位置取「施工日期 ≤ D 的最新一筆」
+當日完成量  = 累計(D) − 累計(D−1)</div>
+      <ul class="clean" style="font-size:.88rem">
+        <li>登記直接生效，不日結；任何日期都可以補登或更正，每筆都留修改紀錄。</li>
+        <li>完成% 比上次低時要填原因；當日完成量可以是負數，照實匯出。</li>
+        <li>匯出時依當下資料重算；已匯出的日子若被補登，匯出檔會不同，所以匯出檔標記產生時間。</li>
+        <li>數量改版：已登記的 % 保留，完成量依新數量重算。</li>
+        <li>兩人同時登記同一位置：送出時帶「看到的舊值」，與伺服器不同就提示確認。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>對接每日施工內容表</h3>
+      <div class="formula">主表逐日欄(層級, D) = 當日圖面完成量（D ≥ 上線日）
+期初%                = 上線前使用數量 ÷ 圖面合計（上限 100%）</div>
+      <ul class="clean" style="font-size:.88rem">
+        <li>依你的決定直接用<b>圖面完成量</b>匯出。<span id="diffCount"></span>CSV 的執行率會超過或達不到 100%（例如 C6 完工時 146%）。</li>
+        <li><b>期初</b>要除以<b>圖面合計</b>（不是合約），上線當天的累計才會等於 CSV 已用數量。例如 C6 已用 500 m²，期初 = 500 ÷ 5,225.6 = 9.6%，平均設到每個房間並標示「期初推估」，工程師再用版面 C 更正。</li>
+        <li id="overUsed"></li>
+        <li><b>進料</b>記在 <code>material</code>，與施作完成% 分開；匯出時怎麼用見待確認第 1 題。</li>
+        <li>W6 已併入 W5，網站只寫 W5 那一列，W6 照舊手填（或另定拆分比例）。</li>
+        <li>主表日期欄改成真正的日期（顯示仍是 m/d），CSV 裡 4/8 出現兩次（2026、2027）的問題就解決了。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2><span class="no">4</span>五個版面設計</h2>
+  <p>五個版面都可以操作，工項、樓層、房間、代號、面積與門窗每一樘都是真實資料。<b>完成百分比與進料數量是示範用的隨機值</b>。五個版面共用同一份資料，在任一版面修改，其他版面會同步。試試看：版面 A 選「門窗」看逐樘的門框、門扇；在任一版面按「整層設為」看覆蓋提示。</p>
+  <div class="tabs" role="tablist" id="tabs" aria-label="版面"></div>
+  <div class="layout-desc" id="ldesc"></div>
+  <div class="stage" id="stage" role="tabpanel"></div>
+  <div class="demo-note"><span>示範資料只存在這個頁面，重新整理會回到預設值。</span><button class="btn" id="resetDemo">還原示範資料</button></div>
+</section>
+
+<section class="sec">
+  <h2><span class="no">5</span>版面比較</h2>
+  <div class="tbl"><table>
+    <tr><th>版面</th><th>主要裝置</th><th>適合誰</th><th>一次登記量</th><th>開發量</th><th>建議</th></tr>
+    <tr><td>A 逐層點選</td><td>手機</td><td>現場工程師</td><td>整層、整間或單一代號</td><td>小</td><td><span class="tag ok">P1</span></td></tr>
+    <tr><td>B 三欄主從</td><td>筆電、平板橫放</td><td>工地辦公室</td><td>整層或一間＋紀錄、備註</td><td>中</td><td><span class="tag w">P3</span></td></tr>
+    <tr><td>C 房間 × 代號矩陣</td><td>桌機</td><td>主任、內業</td><td>整層所有房間與代號、整欄、整列</td><td>中</td><td><span class="tag ok">P1（期初更正）</span></td></tr>
+    <tr><td>D 平面磚塊</td><td>平板</td><td>巡查人員</td><td>一間</td><td>大（要疊平面圖）</td><td><span class="tag w">P3</span></td></tr>
+    <tr><td>E 熱力圖總覽</td><td>桌機</td><td>主任、業主簡報</td><td>點格子後整層</td><td>中</td><td><span class="tag ok">P1（首頁）</span></td></tr>
+  </table></div>
+  <p>建議組合：手機用 <b>A</b> 登記，桌機首頁用 <b>E</b> 看全貌，點格子或從選單進 <b>C</b> 整層修正。</p>
+</section>
+
+<section class="sec">
+  <h2><span class="no">6</span>決策紀錄</h2>
+  <div class="tbl"><table class="dec">
+    <tr><th>題</th><th>你的決定</th><th>設計上的做法</th></tr>
+    <tr><td>登記粒度</td><td>可填全樓層、整間房間，也可填各房間的代號細項；上層覆蓋底下全部，先提示</td><td>A、B、C、E 都有「整層設為」，A、C 有「整間設為」；有不同值時出現黃色確認列</td></tr>
+    <tr><td>進料</td><td>代號層，整批填數量</td><td>每個工項有「代號層」頁，逐代號登記今日到貨數量，累計與圖面合計對照</td></tr>
+    <tr><td>匯出換算</td><td>直接用圖面完成量</td><td>CSV 使用數量 = 當日圖面完成量；執行率可超過 100%</td></tr>
+    <tr><td>期初</td><td>依比例平均設到各位置</td><td>期初% = 已用 ÷ 圖面合計（上限 100%），標示「期初推估」</td></tr>
+    <tr><td>門窗</td><td>展開到每一樘，分門框、門扇</td><td>625 樘依標籤明細展開，逐層與計算式核對一致；門：門框 60%、門扇及五金 40%（施工細項表 0.3：0.2，進料移到代號層）；窗：窗框／玻璃及五金；捲門：導軌及捲軸箱／門片及電動機</td></tr>
+    <tr><td>比例分配</td><td>只在代號層填</td><td>每個代號合併成一筆「不分樓層」，放在代號層頁</td></tr>
+    <tr><td>百分比</td><td>快速鈕＋自由輸入</td><td>0／25／50／75／100 按鈕，另可輸入 0～100 任意整數</td></tr>
+    <tr><td>審核</td><td>直接生效，不日結</td><td>不設審核與日結；可補登任何日期，留完整修改紀錄</td></tr>
+    <tr><td>已 100% 代號</td><td>不特別處理</td><td>與其他代號一樣可登記</td></tr>
+    <tr><td>其他工項</td><td>等算完分層數量再加</td><td>網站先放已有分層數量的 12 個工項</td></tr>
+    <tr><td>資料庫</td><td>Google 試算表</td><td>網頁放 GitHub Pages，Apps Script 當 API 讀寫試算表（見 7.1）</td></tr>
+    <tr><td>登入方式</td><td>Google 帳號，由你發共用權限</td><td>GitHub Pages 上用 Google 登入按鈕；Apps Script 驗證身分並比對試算表共用名單（見 7.1）</td></tr>
+    <tr><td>試算表</td><td>使用你提供的「工項進度登記」</td><td>目前空白；建立時把「工作表1」改成主表「施工-實際進度」，並新增明細工作表</td></tr>
+    <tr><td>試算表結構</td><td>與 CSV「施工-實際進度」的層級、項目、單位一樣</td><td>主表照正式版原樣；明細表前三欄都是層級、項目、單位（見 7.2）</td></tr>
+    <tr><td>資料權威</td><td>網站更新新表，但以正式版為準；不動正式版</td><td>主表＝正式版鏡像（只讀）；網站結果寫「網站每日數量」，差異欄比對正式版（見 7.2）</td></tr>
+  </table></div>
+  <h3 style="margin-top:6px">仍待確認</h3>
+  <ol class="q-list">
+    <li><b>進料怎麼進 CSV：</b>CSV 的使用數量是否包含進料（例如 F6 8/4 記 1,200 m²）？如果包含，匯出時進料與施作要怎麼合計？</li>
+    <li><b>門窗對應房間：</b>標籤明細只有座標、沒有房號。要不要用座標比對房間範圍，補上每樘所在的房號？</li>
+    <li id="q3"><b>期初超過圖面：</b></li>
+    <li><b>網站權限對應：</b>試算表「檢視者」可以用網站登記、「編輯者」另可直接改表，這樣分可以嗎？</li>
+  </ol>
+</section>
+
+<section class="sec">
+  <h2><span class="no">7</span>實作階段</h2>
+  <div class="tbl"><table>
+    <tr><th>階段</th><th>內容</th><th>完成條件</th></tr>
+    <tr><td class="mono">P1</td><td>建 Google 試算表與 Apps Script API；匯入程式（含門窗逐樘）寫入代號、房間、位置、期初；登入代碼；三層填寫；版面 A、C、E 放 GitHub Pages</td><td>工程師可在現場登記；主任在網站或試算表看各代號各層 %，並更正期初</td></tr>
+    <tr><td class="mono">P2</td><td>進料登記、修改紀錄、「每日使用數量」工作表、數量改版、離線佇列、每週備份觸發器</td><td>每日使用數量可直接貼回每日施工內容表</td></tr>
+    <tr><td class="mono">P3</td><td>版面 B；版面 D 疊各層 <code>_最終標註.png</code>；門窗座標對應房號；照片上傳</td><td>在平面圖上點房間即可登記</td></tr>
+  </table></div>
+</section>
+
+<section class="sec">
+  <h2><span class="no">7.1</span>主機與資料庫</h2>
+  <p style="font-size:.88rem">已決定：<b>網頁放 GitHub Pages，資料存在試算表「工項進度登記」，用 Apps Script 當 API；登入用 Google 帳號，誰能用由你在試算表的「共用」設定決定。</b></p>
+  <div class="flow"><span class="k">工程師用 Google 帳號登入</span><i>→</i><span>GitHub Pages 網頁取得 Google 身分憑證</span><i>→</i><span class="k">Apps Script 驗證憑證，查此人是否在試算表共用名單</span><i>↔</i><span class="k">試算表「工項進度登記」</span></div>
+  <div class="tbl"><table>
+    <tr><th>你在試算表的共用設定</th><th>網站上的權限</th><th>能不能直接改試算表</th></tr>
+    <tr><td><b>檢視者</b></td><td>登入、查看、登記進度與進料</td><td>不能（只能透過網站寫入，資料最乾淨）</td></tr>
+    <tr><td><b>編輯者</b></td><td>同上，另可按「全部重算」、看全部人員紀錄</td><td>可以（給主任、內業）</td></tr>
+    <tr><td>未共用</td><td>登入後顯示「請向管理者申請權限」</td><td>—</td></tr>
+  </table></div>
+  <p class="muted" style="font-size:.82rem">新增人員：在試算表按「共用」加入對方的 Google 帳號即可，不用另外建帳號或密碼；移除共用就立即失去權限。工程師用的 Google 帳號可以是個人 Gmail。</p>
+  <div class="cols2">
+    <div class="card">
+      <h3>為什麼不直接用 Apps Script 網頁（不經 GitHub Pages）</h3>
+      <p style="font-size:.86rem">Apps Script 自己也能出網頁，設定「以使用者身分執行」就會自動要求 Google 登入。但每位工程師都必須是試算表<b>編輯者</b>（可以直接改表），而且手機瀏覽器同時登入多個 Google 帳號時常出現「目前無法開啟檔案」，現場不好排除。所以維持 GitHub Pages ＋ Google 登入按鈕。</p>
+    </div>
+    <div class="card">
+      <h3>一次性設定（約 15 分鐘）</h3>
+      <ul class="clean" style="font-size:.86rem">
+        <li>Google Cloud 建一個專案與「OAuth 用戶端 ID（網頁應用程式）」，允許的來源填 GitHub Pages 網址；只用 email 等基本權限，不需 Google 審核。</li>
+        <li>試算表時區改為「(GMT+08:00) 台北」，目前是 GMT，日期會差一天。</li>
+        <li>Apps Script 部署為網頁應用程式：「以我的身分執行」「任何人」可存取（實際權限由共用名單把關）。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="cols2">
+    <div class="card">
+      <h3>Apps Script API</h3>
+      <div class="tbl"><table>
+        <tr><th>動作</th><th>說明</th></tr>
+        <tr><td>每個請求</td><td>附 Google 身分憑證（ID token）；Apps Script 向 Google 驗證憑證、確認 email 在試算表的檢視者或編輯者名單，結果快取 10 分鐘</td></tr>
+        <tr><td><code>bootstrap</code></td><td>取回位置與目前進度（約 2,000 筆，層級、項目、單位照主表），用 CacheService 快取</td></tr>
+        <tr><td><code>submit</code></td><td>一次送多筆（整層也是一次），每筆帶 UUID 與看到的舊值；LockService 鎖定後寫入「進度紀錄」與「目前進度」，回傳衝突清單</td></tr>
+        <tr><td><code>material</code></td><td>登記進料</td></tr>
+        <tr><td><code>history</code></td><td>取某個房間或位置的修改紀錄</td></tr>
+        <tr><td>（寫入後自動）</td><td>依進度紀錄重算該層級上線日之後的每日完成量，寫回主表「施工-實際進度」的日期欄，並更新「分層進度」</td></tr>
+        <tr><td>試算表選單</td><td>「全部重算」：數量改版或手動修正後，重算所有網站管理的層級</td></tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <h3>注意事項</h3>
+      <ul class="clean" style="font-size:.86rem">
+        <li><b>數量不放進 GitHub Pages：</b>Pages 網頁一律公開（私有倉庫也一樣），網頁只放程式，數量與進度都在登入後才從試算表取。</li>
+        <li><b>跨網域：</b>POST 用 <code>Content-Type: text/plain</code> 避開 CORS 預檢；Apps Script 的回應會轉址到 googleusercontent.com，fetch 會自動跟隨。</li>
+        <li><b>寫入身分：</b>Apps Script 以你的身分寫入，「進度紀錄」的登記人欄記下驗證過的 email；編輯者若直接改表，Google 版本記錄也查得到是誰。</li>
+        <li><b>速度：</b>每次寫入約 1～3 秒。網頁先顯示結果、背景送出；失敗的留在手機的離線佇列，連線後用 UUID 重送，不會重複。</li>
+        <li><b>容量與配額：</b>試算表上限 1,000 萬格；進度紀錄每年估 3 萬筆 × 12 欄約 36 萬格。Apps Script 同時執行約 30 個，十幾位工程師足夠。</li>
+        <li><b>多人同時寫：</b>LockService 讓寫入排隊；舊值與試算表不同的筆數退回網頁，讓工程師確認後再送。</li>
+        <li><b>備份：</b>每週觸發器複製一份試算表到雲端硬碟資料夾，另有版本記錄可還原。</li>
+        <li><b>匯入：</b><code>extract.py</code> 加一個輸出，產生代號、房間、位置、期初各工作表的資料，數量改版時重跑並標記版本。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2><span class="no">7.2</span>主表與網站每日數量（以正式版為準）</h2>
+  <p style="font-size:.88rem"><b>已決定：網站只更新新表「工項進度登記」，數字以正式版「高軟每日施工內容(正式版)」為準，程式與網站一律不修改正式版。</b></p>
+  <div class="tbl"><table>
+    <tr><th>工作表</th><th>內容</th><th>誰更新</th></tr>
+    <tr><td><b>施工-實際進度</b></td><td>正式版「施工-實際進度 (修訂2版)」的鏡像：2,954 列 × 421 欄，公式、格式、凍結窗格、群組都相同；網站負責的 188 個層級在 A～C 欄標淺藍</td><td>只從正式版讀取同步（Apps Script 定時，只讀不寫）；網站不寫</td></tr>
+    <tr><td><b>網站每日數量</b></td><td>列與主表完全對齊：E 圖面數量、G 網站累計、H 正式版使用數量、I 差異（網站−正式版，非 0 標紅）、J 期初、K 起逐日完成量</td><td>網站</td></tr>
+  </table></div>
+  <p style="font-size:.88rem">內業每天看「網站每日數量」的差異欄，自行決定要不要把網站的數字填進正式版；正式版改了之後，同步回主表，差異欄就會歸零。下表是主表（＝正式版）的樣子，網站管理的 <b>188 個層級（12 個工項）全部在正式版找得到同一個層級</b>。</p>
+  <div class="tbl"><table style="font-size:.78rem">
+    <tr><th>層級</th><th>項目</th><th>單位</th><th class="n">數量</th><th class="n">使用數量</th><th class="n">剩餘數量</th><th class="n">執行率</th><th class="n">已使用</th><th class="n">4/8</th><th class="n">…</th><th class="n">8/4</th><th class="n">…</th><th class="n">11/10</th><th class="n">…</th><th class="n">11/20</th><th class="n">11/21</th></tr>
+    <tr><td class="mono">I.甲.壹.六</td><td><b>裝修工程</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="mono">I.甲.壹.六.1</td><td><b>地坪工程</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="mono">I.甲.壹.六.1.1</td><td>貼面磚，F1-地坪1:3水泥砂漿打底+鋪20* 27cm石英磚…</td><td>M2</td><td class="n">670.0</td><td class="n">670.00</td><td class="n">0.00</td><td class="n">100%</td><td class="n">320.450</td><td class="n">320.450</td><td class="n">…</td><td class="n"></td><td class="n">…</td><td class="n"></td><td class="n">…</td><td class="n"></td><td class="n"></td></tr>
+    <tr><td class="mono">I.甲.壹.六.1.6</td><td>貼面磚，F6-地坪80*80cm拋光石英磚(具綠建材)</td><td>M2</td><td class="n">5,738.0</td><td class="n">3,450.00</td><td class="n">2,288.00</td><td class="n">60%</td><td class="n">0.000</td><td class="n"></td><td class="n">…</td><td class="n">1200</td><td class="n">…</td><td class="n">250</td><td class="n">…</td><td class="n"></td><td class="n"></td></tr>
+    <tr><td class="mono">I.甲.壹.六.2</td><td><b>平頂工程</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td class="mono">I.甲.壹.六.2.7</td><td>天花板，C6-平頂60*60cm明架矽酸鈣板天花(綠建材)</td><td>M2</td><td class="n">3,582.0</td><td class="n">500.00</td><td class="n">3,082.00</td><td class="n">14%</td><td class="n">0.000</td><td class="n"></td><td class="n">…</td><td class="n"></td><td class="n">…</td><td class="n"></td><td class="n">…</td><td class="n"></td><td class="n"></td></tr>
+  </table></div>
+  <p class="muted" style="font-size:.8rem">數字取自正式版（單價、複價欄照原表保留，網站不讀取也不傳到網頁）。主表的日期欄維持正式版原值，網站不寫入。</p>
+  <div class="cols2">
+    <div class="card">
+      <h3>欄位怎麼算</h3>
+      <ul class="clean" style="font-size:.86rem">
+        <li><b>使用數量</b> = 該列所有日期欄合計（CSV 現有 2,532 列都符合，其餘是顯示四捨五入）。</li>
+        <li><b>剩餘數量</b> = 數量 − 使用數量；<b>執行率</b> = 使用數量 ÷ 數量。照你的決定用圖面完成量，所以可能超過 100%（CSV 已有 I.甲.壹.一.13 的 130%）。</li>
+        <li><b>已使用</b>沿用原表的期初值，網站不改。</li>
+        <li>天氣兩列照舊手填。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>網站怎麼寫入「網站每日數量」</h3>
+      <ul class="clean" style="font-size:.86rem">
+        <li>每次登記後，Apps Script 依「進度紀錄」重算該層級上線日之後每一天的完成量，寫進「網站每日數量」同一列的日期欄；補登過去日期也會反映。</li>
+        <li>上線時：J 欄期初＝當天正式版的使用數量；依「期初% = 期初 ÷ 圖面合計」平均設到該層級的每個位置，所以上線當天網站累計＝正式版使用數量，差異為 0。</li>
+        <li>G 網站累計＝期初＋逐日合計；I 差異＝網站累計−正式版使用數量，不為 0 時標紅，由內業判斷。</li>
+        <li>主表只從正式版讀取同步；正式版插入或刪除列時，同步程式也會重排「網站每日數量」的列，保持對齊。</li>
+        <li>進料：寫在「進料」工作表，不寫入每日數量（待確認第 1 題）。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="reviewSec">
+  <h2><span class="no">8</span>Fable 5.2 審查與處理</h2>
+  <!--REVIEW-->
+</section>
+
+<div class="footer">數量來源：各工項資料夾的 <code>*_數量計算表.xlsx</code>（「計算式」工作表，門窗為「標籤明細」）與 <code>分層數量表_地坪及貼面磚.xlsx</code>「房間明細」；合約與已用數量取自每日施工內容 CSV。百分比與進料為示範值。萃取與建置程式：<code>進度登記網站規劃/_程式/extract.py</code>。</div>
+</div>
+
+<script>
+const DATA=/*DATA*/;
+const CODE_FL='代號層';
+const FLOORS=[CODE_FL,'筏基層','B3F','B2F','B1F','1F','2F','3F','4F','5F','6F','7F','8F','9F','10F','11F','屋突層'];
+const flIdx=f=>{const i=FLOORS.indexOf(f);return i<0?99:i};
+const SRC={'貼面磚':'磁磚數量','地坪（EPOXY／粉光）':'分層數量表_地坪及貼面磚','天然石材（地坪）':'天然石材數量（F13 取自分層數量表）','天然石材（立面）':'天然石材數量（立面）','塑木地板':'塑木地板數量','高架地板':'高架地板數量','天花板':'天花板數量','油漆':'油漆數量','防水':'防水數量','門窗':'門窗數量（標籤明細）','防水閘門':'防水閘門數量','欄杆':'欄杆數量'};
+const unitTxt=u=>({M2:'m²',M:'m'}[u]||u);
+const cmpRid=(a,b)=>String(a).localeCompare(String(b),'zh-Hant',{numeric:true});
+// ---- 攤平：工項 > 代號 > 位置；房間索引（工項|樓層|房號；門窗以代號分組；比例分配併成代號層一筆） ----
+const CATS=[],ITEMS=[],LOCS=[],ROOMS=[],RMAP={};
+function addLoc(o,fl,rid,nm,q,kind,roomRid,roomNm){const key=o.ci+'|'+fl+'|'+roomRid;let ri=RMAP[key];
+  if(ri===undefined){ri=RMAP[key]=ROOMS.length;ROOMS.push({ri,ci:o.ci,fl,rid:roomRid,nm:roomNm,kind:kind==='單樘'?'代號組':kind,locs:[]})}
+  const li=LOCS.length;LOCS.push({li,ii:o.ii,ci:o.ci,ri,fl,rid,nm,q,kind,tag:kind==='單樘'});o.locs.push(li);ROOMS[ri].locs.push(li)}
+DATA.forEach((c,ci)=>{const C={ci,cat:c.cat,items:[]};CATS.push(C);
+  c.items.forEach(it=>{const ii=ITEMS.length;C.items.push(ii);
+    const o={ii,ci,no:it.no,code:it.code||it.no.split('.').pop(),name:it.name,short:String(it.name).replace(/^[^，]*，/,''),unit:unitTxt(it.unit),steps:it.steps,tagSteps:it.tagSteps,contract:it.contract,used:it.used,locs:[]};ITEMS.push(o);
+    let prop=0;
+    it.rows.forEach(r=>{const [fl,rid,nm,q]=r;
+      if(/比例分配/.test(rid)){prop+=q;return}
+      if(o.tagSteps){addLoc(o,fl,rid,nm||'—',q,'單樘',o.code,o.short.slice(0,24));return}
+      const kind=c.cat==='防水閘門'?'標籤':/^[A-Z]?\d{2,4}[a-z]?(\+\d+[a-z]?)?$/i.test(rid)?'房間':'部位';
+      addLoc(o,fl,rid,nm,q,kind,rid,nm)});
+    if(prop)addLoc(o,CODE_FL,o.code,'不分樓層（比例分配）',prop,'不分樓層',o.code,'不分樓層');
+    o.floors=[...new Set(o.locs.map(l=>LOCS[l].fl))].sort((a,b)=>flIdx(a)-flIdx(b));
+    o.total=o.locs.reduce((s,l)=>s+LOCS[l].q,0)})});
+CATS.forEach(C=>{C.rooms=ROOMS.filter(r=>r.ci===C.ci);C.floors=[...new Set(C.rooms.map(r=>r.fl))].filter(f=>f!==CODE_FL).sort((a,b)=>flIdx(a)-flIdx(b));C.hasTag=C.items.some(i=>ITEMS[i].tagSteps)});
+const floorRooms=(ci,fl)=>CATS[ci].rooms.filter(r=>r.fl===fl).sort((a,b)=>cmpRid(a.rid,b.rid));
+const itemFloorLocs=(ii,fl)=>ITEMS[ii].locs.filter(l=>LOCS[l].fl===fl);
+const codeLoc=ii=>ITEMS[ii].locs.find(l=>LOCS[l].fl===CODE_FL);
+// ---- 狀態：P 一般位置 %；T 單樘 [框,扇]；MAT 進料 ----
+let P={},T={},MAT={};const HIST={},NOTE={};
+function seed(){P={};T={};MAT={};let s=20261119;const rnd=()=>(s=(s*1103515245+12345)%2147483648)/2147483648;
+  LOCS.forEach(l=>{const base=l.fl===CODE_FL?.5:Math.max(0,1-flIdx(l.fl)/15),r=rnd();
+    if(l.tag){T[l.li]=r<base*.6?[1,1]:r<base*.9?[1,0]:[0,0];return}
+    P[l.li]=r<base*.55?100:r<base*.85?[25,50,75][Math.floor(rnd()*3)]:r<base*.95?[10,20,30][Math.floor(rnd()*3)]:0});
+  ITEMS.forEach(o=>{const f=Math.min(1,rnd()*1.2);MAT[o.ii]=f<.1?[]:[{d:'10/28',q:Math.round(o.total*f*.6)},{d:'11/12',q:Math.round(o.total*f*.4)}].filter(x=>x.q>0)})}
+seed();
+const val=li=>{const l=LOCS[li];if(!l.tag)return P[li];const w=ITEMS[l.ii].tagSteps;return Math.round((T[li][0]*w[0][1]+T[li][1]*w[1][1])*100)};
+const clamp=v=>Math.max(0,Math.min(100,Math.round(+v||0)));
+const stamp=()=>'11/19 '+new Date().toTimeString().slice(0,5);
+function setLoc(li,v,why){const l=LOCS[li];v=clamp(v);const old=val(li);
+  if(l.tag){const w0=ITEMS[l.ii].tagSteps[0][1]*100;T[li]=v>=100?[1,1]:v>=w0?[1,0]:[0,0]}else P[li]=v;
+  if(val(li)!==old)(HIST[li]=HIST[li]||[]).unshift({t:(why?why+' ':'')+old+'% → '+val(li)+'%',who:'王工程師',d:stamp()})}
+function setTag(li,k,on){const old=val(li);T[li]=T[li].slice();T[li][k]=on?1:0;if(val(li)!==old)(HIST[li]=HIST[li]||[]).unshift({t:ITEMS[LOCS[li].ii].tagSteps[k][0]+(on?' 完成':' 取消'),who:'王工程師',d:stamp()})}
+// 彙總：同單位以數量加權；不同單位只算完成筆數
+function sum(locs){const units=new Set(locs.map(l=>ITEMS[LOCS[l].ii].unit));let q=0,d=0;locs.forEach(l=>{q+=LOCS[l].q;d+=LOCS[l].q*val(l)/100});
+  const done=locs.filter(l=>val(l)>=100).length;return {mixed:units.size>1,unit:[...units].join('、'),q,d,p:units.size>1?null:(q?d/q*100:0),done,n:locs.length}}
+const matSum=ii=>(MAT[ii]||[]).reduce((s,x)=>s+x.q,0);
+const fmt=(x,u)=>{const d=u==='樘'?1:x>=100?1:2;return x.toLocaleString('zh-TW',{maximumFractionDigits:d,minimumFractionDigits:u==='樘'?0:Math.min(d,1)})};
+const fp=p=>p==null?'—':Math.round(p)+'%';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const bar=p=>p==null?'':`<div class="pbar ${p>=99.5?'done':''}"><i style="width:${p}%"></i></div>`;
+const heat=p=>p<=0?'var(--h0)':p<20?'var(--h1)':p<45?'var(--h2)':p<70?'var(--h3)':p<99.5?'var(--h4)':'var(--h5)';
+const heatInk=p=>p>=70?'#fff':'var(--ink)';
+const kindTag=k=>k==='房間'||k==='代號組'?'':`<span class="kind">${k}</span>`;
+const sumTxt=s=>s.mixed?`完成 ${s.done}/${s.n} 筆`:fp(s.p);
+const roomCodes=r=>{if(r.kind==='代號組'){const g=sum(r.locs);return `<span class="codes"><span class="${g.done===g.n?'ok':''}">${g.n} 樘・完成 ${g.done}</span></span>`}
+  return `<span class="codes">${r.locs.map(l=>`<span class="${val(l)>=100?'ok':''}">${esc(ITEMS[LOCS[l].ii].code)}</span>`).join('')}</span>`};
+const roomTitle=r=>r.kind==='代號組'?`<b class="mono">${esc(r.rid)}</b> ${esc(r.nm)}`:`<b class="mono">${esc(r.rid)}</b> ${esc(r.nm)}${kindTag(r.kind)}`;
+const stepTxt=o=>o.tagSteps?o.tagSteps.map(x=>x[0]+' '+x[1]*100+'%').join('／'):o.steps?o.steps.join('／'):'待定';
+// 輸入元件
+function chips(li,ns,cur,draft,attr='set'){const v=draft!=null?draft:cur;return `<div class="chips">${[0,25,50,75,100].map(x=>`<button data-${attr}="${li}" data-v="${x}" class="${v===x?(draft!=null&&draft!==cur?'draft':'on'):''}" aria-label="${x}%">${x}</button>`).join('')}<input class="pin" type="number" min="0" max="100" step="5" value="${v}" data-${attr}in="${li}" id="${ns}-in-${li}" aria-label="完成百分比"></div>`}
+function toggles(li,draft){const st=ITEMS[LOCS[li].ii].tagSteps,cur=T[li],v=draft||cur;return `<div class="tg">${st.map((s,k)=>`<button data-tg="${li}" data-k="${k}" class="${v[k]?(draft&&draft[k]!==cur[k]?'draft':'on'):''}" aria-pressed="${!!v[k]}">${v[k]?'✓ ':''}${s[0]}</button>`).join('')}</div>`}
+function locInput(li,ns,draft){const l=LOCS[li];return l.tag?toggles(li,draft):chips(li,ns,P[li],draft)}
+function bulkBar(label,scope,ns){return `<div class="bulk"><span>${label}</span><div class="chips">${[0,25,50,75,100].map(x=>`<button data-bulk="${scope}" data-v="${x}">${x}</button>`).join('')}</div></div>`}
+// 代號層：進料＋不分樓層
+function codeLevel(ci,ns,only){const ids=only!=null?[only]:CATS[ci].items;
+  return ids.map(i=>{const o=ITEMS[i],m=matSum(i),cl=codeLoc(i);return `<div class="mat"><div class="top"><span><span class="code">${esc(o.code)}</span><span class="muted" style="font-size:.75rem">${esc(o.short.slice(0,22))}</span></span><span class="qty">圖面 ${fmt(o.total,o.unit)} ${o.unit}</span></div>
+    <div class="row"><span>進料累計 <b class="mono">${fmt(m,o.unit)}</b>（${fp(o.total?m/o.total*100:0)}）</span><span style="flex:1"></span><input class="pin" type="number" min="0" step="1" placeholder="今日到貨" id="${ns}-mat-${i}" aria-label="${esc(o.code)} 今日進料數量"><button class="btn" data-mat="${i}" data-ns="${ns}">登記進料</button></div>
+    ${cl!=null?`<div style="display:grid;gap:4px"><span style="font-size:.75rem">不分樓層（比例分配）${fmt(LOCS[cl].q,o.unit)} ${o.unit}</span>${chips(cl,ns,P[cl])}</div>`:''}</div>`}).join('')}
+const codeLevelCount=ci=>CATS[ci].items.length;
+// 覆蓋確認
+let CF=null;
+function askBulk(locs,v,label){v=clamp(v);const diff=locs.filter(l=>val(l)!==v&&val(l)>0);if(!diff.length){locs.forEach(l=>setLoc(l,v,label));CF=null}else CF={locs,v,label,diff:diff.length}}
+const cfBar=()=>CF?`<div class="cf" role="alert"><span>將「${esc(CF.label)}」共 ${CF.locs.length} 筆設為 <b>${CF.v}%</b>，其中 ${CF.diff} 筆原本是其他值，會被覆蓋。</span><button class="btn" data-cf="no">取消</button><button class="btn pri" data-cf="ok">確定覆蓋</button></div>`:'';
+
+// ---- 規模、分類表、範例、合約差異、期初 ----
+document.getElementById('stats').innerHTML=[[CATS.length,'工項'],[ITEMS.length,'代號'],[ROOMS.length.toLocaleString(),'房間／組'],[LOCS.length.toLocaleString(),'登記筆數']].map(([a,b])=>`<div><b>${a}</b><span>${b}</span></div>`).join('');
+document.querySelector('#catTable tbody').innerHTML=CATS.map(C=>{const o=ITEMS[C.items[0]];const units=[...new Set(C.items.map(i=>ITEMS[i].unit))].join('、');return `<tr><td>${C.cat}</td><td class="n">${C.items.length}</td><td class="n">${C.rooms.length}</td><td class="n">${C.items.reduce((s,i)=>s+ITEMS[i].locs.length,0)}</td><td>${units}</td><td>${C.hasTag?'依類別：門框／門扇、窗框／玻璃、導軌／門片（60／40）':o.steps?o.steps.filter(x=>!/^進料/.test(x)).join('／')+' <span class="muted">（進料在代號層）</span>':'<span class="tag w">待定</span>'}</td><td class="muted">${SRC[C.cat]}</td></tr>`}).join('');
+(()=>{const r=ROOMS.find(r=>CATS[r.ci].cat==='天花板'&&r.fl==='2F'&&r.rid==='213');
+  document.getElementById('exTable').innerHTML='<tr><th>代號</th><th>品名</th><th class="n">面積</th><th class="n">完成%</th></tr>'+r.locs.map(l=>{const o=ITEMS[LOCS[l].ii];return `<tr><td class="mono"><b>${esc(o.code)}</b></td><td>${esc(o.short.slice(0,22))}</td><td class="n">${fmt(LOCS[l].q,o.unit)} ${o.unit}</td><td class="n">填 %</td></tr>`}).join('')})();
+(()=>{const d=ITEMS.filter(o=>o.contract&&Math.abs(o.total/o.contract-1)>.05).length;document.getElementById('diffCount').textContent=`${ITEMS.length} 個代號中有 ${d} 個圖面與合約相差超過 5%，`;
+  const over=ITEMS.filter(o=>o.used>o.total*1.0001);const txt=over.map(o=>`${o.code} ${fmt(o.used,o.unit)}／${fmt(o.total,o.unit)}`).join('、');
+  document.getElementById('overUsed').innerHTML=`<b>CSV 已用超過圖面合計</b>的有 ${over.length} 個代號，期初以 100% 計，差額列在匯入報告。`;
+  document.getElementById('q3').innerHTML=`<b>期初超過圖面：</b>CSV 已用數量大於圖面合計的 ${over.length} 個代號（${esc(txt)}），期初以 100% 計可以嗎？差額要不要另外說明？`})();
+
+// ---- 版面 ----
+const LAYOUTS=[
+ {id:'A',name:'逐層點選',sub:'手機・現場',desc:'照流程一層一層點：工項 → 樓層 → 房間 → 代號細項。樓層清單最上面是「代號層」（進料與不分樓層）。房間清單上方可「整層設為」，房間內可「整間設為」；改過的先標黃，按儲存才送出。門窗是樓層 → 代號 → 每一樘，分門框、門扇勾選。',pros:'最符合現場操作；按鈕 44 px 以上，戴手套也按得到；整層、整間、單一代號都能填。',cons:'跨樓層批次修改要來回點；看不到整棟全貌。'},
+ {id:'B',name:'三欄主從',sub:'筆電・工地辦公室',desc:'左欄是工項與樓層樹（含代號層），中欄是該層房間表與「整層設為」，右欄是房間明細：每個代號的面積與完成%、施作細項、修改紀錄、備註與照片。',pros:'不用換頁；紀錄與備註都在同一畫面；適合邊看圖邊登記。',cons:'手機上要改成單欄；資訊量大。'},
+ {id:'C',name:'房間 × 代號矩陣',sub:'桌機・內業',desc:'選工項與樓層，列是房間、欄是代號，每格一筆（下方小字是面積）。可整層、整欄、整列設定。門窗改成逐樘清單，門框、門扇各一欄勾選。選「代號層」則登記進料與不分樓層的數量。',pros:'整層一次看完、一次改完；期初更正最快；跟 Excel 習慣一致。',cons:'手機不好用；一次改很多格，靠覆蓋提示與修改紀錄把關。'},
+ {id:'D',name:'平面磚塊',sub:'平板・巡查',desc:'選工項與樓層後，房間以磚塊呈現，大小依面積、顏色依完成%。點磚塊後逐代號登記。正式版換成平面圖上的房間多邊形；門窗可直接用標籤座標畫在圖上。',pros:'一眼看出哪間沒做；巡查時對位直覺。',cons:'正式版要準備每層房間座標。'},
+ {id:'E',name:'熱力圖總覽',sub:'桌機・首頁',desc:'上方是工項完成度，下方是「代號 × 樓層」熱力圖，最左欄是代號層，右側對照網站完成率與期初%。點格子從右側滑出該層的房間直接修改，也可以整層設定。',pros:'主任與業主簡報最好用；找落後樓層最快。',cons:'代號多時要捲動；單一房間的紀錄要再點進去。'},
+];
+let cur='A';
+const tabs=document.getElementById('tabs');
+tabs.innerHTML=LAYOUTS.map(l=>`<button role="tab" id="tab-${l.id}" aria-selected="${l.id===cur}" tabindex="${l.id===cur?0:-1}" data-tab="${l.id}">${l.id}　${l.name}<small>${l.sub}</small></button>`).join('');
+const selTab=id=>{cur=id;CF=null;[...tabs.children].forEach(x=>{const on=x.dataset.tab===cur;x.setAttribute('aria-selected',on);x.tabIndex=on?0:-1});document.getElementById('stage').setAttribute('aria-labelledby','tab-'+cur);render()};
+tabs.onclick=e=>{const b=e.target.closest('[data-tab]');if(b)selTab(b.dataset.tab)};
+tabs.onkeydown=e=>{const i=LAYOUTS.findIndex(l=>l.id===cur);let j=null;if(e.key==='ArrowRight')j=(i+1)%5;if(e.key==='ArrowLeft')j=(i+4)%5;if(j!=null){e.preventDefault();selTab(LAYOUTS[j].id);document.getElementById('tab-'+LAYOUTS[j].id).focus()}};
+
+const CEIL=CATS.findIndex(c=>c.cat==='天花板');
+const S={a:{view:'cat',ci:null,fl:null,ri:null,q:'',draft:{}},b:{ci:CEIL,fl:'2F',ri:null},c:{ci:CEIL,fl:'2F'},d:{ci:CEIL,fl:'3F',sel:null},e:{ci:CEIL,open:null}};
+S.b.ri=floorRooms(CEIL,'2F')[0].ri;
+const floorLocs=(ci,fl)=>floorRooms(ci,fl).flatMap(r=>r.locs);
+
+function renderA(){const s=S.a;let crumb=[],title='',body='',back='',foot='';
+  if(s.view==='cat'){title='選擇工項';
+    body=`<div class="grid">${CATS.map(C=>{const g=sum(C.rooms.flatMap(r=>r.locs));return `<button class="tile" data-a="cat" data-ci="${C.ci}"><b>${C.cat}</b><span class="muted" style="font-size:.72rem">${C.items.length} 個代號・${C.floors.length} 層</span>${bar(g.p)}<span class="pct" style="font-size:.78rem">${sumTxt(g)}</span></button>`}).join('')}</div>`}
+  else if(s.view==='fl'){const C=CATS[s.ci];title=C.cat;back='cat';crumb=[['cat','工項']];
+    body=`<button class="rowbtn" data-a="fl" data-fl="${CODE_FL}"><div class="top"><span><b>代號層</b>　<span class="muted" style="font-size:.75rem">進料・不分樓層</span></span><span class="muted" style="font-size:.75rem">${codeLevelCount(s.ci)} 個代號 ›</span></div></button>`+
+      C.floors.map(f=>{const R=floorRooms(s.ci,f),g=sum(R.flatMap(r=>r.locs));return `<button class="rowbtn" data-a="fl" data-fl="${f}"><div class="top"><span><b class="mono">${f}</b>　<span class="muted" style="font-size:.75rem">${R.length} ${C.hasTag?'組':'間'}・${g.n} 筆</span></span><span class="pct">${sumTxt(g)}</span></div>${bar(g.p)}</button>`}).join('')}
+  else if(s.view==='code'){const C=CATS[s.ci];title=C.cat+'・代號層';back='fl';crumb=[['cat','工項'],['fl',C.cat]];body=codeLevel(s.ci,'a')}
+  else if(s.view==='room'){const C=CATS[s.ci];title=C.cat+'・'+s.fl;back='fl';crumb=[['cat','工項'],['fl',C.cat]];
+    const R=floorRooms(s.ci,s.fl).filter(r=>!s.q||(r.rid+r.nm).toLowerCase().includes(s.q.toLowerCase()));
+    body=bulkBar(`整層設為（${floorLocs(s.ci,s.fl).length} 筆）`,'a-floor')+`<div class="search"><input id="a-search" type="search" placeholder="${C.hasTag?'搜尋代號':'搜尋房號或空間名稱'}" value="${esc(s.q)}" data-a-search="1" aria-label="搜尋"></div>`+(R.length?R.map(r=>{const g=sum(r.locs);return `<button class="rowbtn" data-a="room" data-ri="${r.ri}"><div class="top"><span class="nm">${roomTitle(r)}</span><span class="pct">${sumTxt(g)}</span></div>${roomCodes(r)}</button>`}).join(''):'<p class="muted" style="padding:14px">沒有符合的項目。</p>')}
+  else{const r=ROOMS[s.ri],C=CATS[s.ci];title=r.kind==='代號組'?r.rid+'・'+s.fl:r.rid+' '+r.nm;back='room';crumb=[['cat','工項'],['fl',C.cat],['room',s.fl]];
+    body=bulkBar(r.kind==='代號組'?`整組設為（${r.locs.length} 樘）`:'整間設為','a-room')+r.locs.map(li=>{const l=LOCS[li],o=ITEMS[l.ii],dr=s.draft[li];const ch=dr!=null&&JSON.stringify(dr)!==JSON.stringify(l.tag?T[li]:P[li]);
+      const head=l.tag?`<span><b class="mono">${esc(l.rid)}</b> <span class="muted" style="font-size:.72rem">${esc(l.nm)}</span></span><span class="area">1 <small>樘</small></span>`:`<span><span class="code">${esc(o.code)}</span><span class="muted" style="font-size:.75rem">${esc(o.short.slice(0,18))}</span></span><span class="area">${fmt(l.q,o.unit)} <small>${o.unit}</small></span>`;
+      return `<div class="codeRow ${ch?'changed':''}"><div class="top">${head}</div>${locInput(li,'a',dr)}</div>`}).join('');
+    const n=Object.keys(s.draft).filter(k=>JSON.stringify(s.draft[k])!==JSON.stringify(LOCS[k].tag?T[k]:P[k])).length;
+    foot=`<div class="ft"><span class="sp">${n?`${n} 筆未儲存`:'改過的會標黃，按儲存才送出'}</span>${n?'<button class="btn" data-a="cancel">取消</button>':''}<button class="btn pri" data-a="save" ${n?'':'disabled'}>儲存</button></div>`}
+  return `<div class="phone"><div class="scr"><div class="hd">${crumb.length?`<div class="crumb">${crumb.map(([v,t])=>`<button data-a="go" data-v="${v}">${esc(t)}</button><span>›</span>`).join('')}</div>`:''}<div class="ttl">${back?`<button class="back" data-a="go" data-v="${back}" aria-label="上一層">‹</button>`:''}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(title)}</span></div>${s.view==='loc'?`<div class="datepick">${ROOMS[s.ri].fl}・施工日期 <span class="mono">2026-11-19</span>・王工程師</div>`:''}</div>${cfBar()}<div class="body" data-keep="a-body">${body}</div>${foot}</div></div>`}
+
+function detailLocs(r,ns){return r.locs.map(li=>{const l=LOCS[li],o=ITEMS[l.ii];
+  if(l.tag)return `<div class="dcode"><div class="top"><span><b class="mono">${esc(l.rid)}</b> <span class="muted" style="font-size:.72rem">${esc(l.nm)}</span></span><span class="pct">${val(li)}%</span></div>${toggles(li)}</div>`;
+  return `<div class="dcode"><div class="top"><span><span class="code">${esc(o.code)}</span><span class="qty">${fmt(l.q,o.unit)} ${o.unit}</span></span><input class="pin" type="number" min="0" max="100" step="5" value="${P[li]}" data-setin="${li}" id="${ns}-in-${li}" aria-label="${esc(o.code)} 完成百分比"></div><input type="range" min="0" max="100" step="5" value="${P[li]}" data-brange="${li}" id="${ns}-rg-${li}" aria-label="${esc(o.code)} 完成百分比滑桿"><span class="muted" style="font-size:.7rem">${esc(o.short.slice(0,30))}・細項：${esc(stepTxt(o))}</span></div>`}).join('')}
+
+function renderB(){const s=S.b,C=CATS[s.ci];
+  const left=CATS.map(X=>`<details ${X.ci===s.ci?'open':''}><summary>${X.cat}<span>${X.floors.length} 層</span></summary><button class="tree ${X.ci===s.ci&&s.fl===CODE_FL?'on':''}" data-b="fl" data-ci="${X.ci}" data-fl="${CODE_FL}"><span>代號層</span><span>進料</span></button>${X.floors.map(f=>`<button class="tree ${X.ci===s.ci&&f===s.fl?'on':''}" data-b="fl" data-ci="${X.ci}" data-fl="${f}"><span>${f}</span><span>${sumTxt(sum(floorLocs(X.ci,f)))}</span></button>`).join('')}</details>`).join('');
+  let mid,right;
+  if(s.fl===CODE_FL){mid=`<div style="padding:10px 12px"><b>${C.cat}・代號層</b><div class="muted" style="font-size:.75rem">進料整批登記；比例分配的數量不分樓層</div></div>`+codeLevel(s.ci,'b');
+    right=`<div class="detail"><b>代號層說明</b><p class="muted" style="font-size:.8rem">進料以到貨數量登記，不影響施作完成%。欄杆樓梯扶手、防水筏基、油漆樑等沒有房間的比例分配數量，只在這裡填一個 %。</p></div>`}
+  else{const R=floorRooms(s.ci,s.fl);const g=sum(R.flatMap(x=>x.locs));const r=ROOMS[s.ri];
+    mid=`<div style="padding:10px 12px"><b>${C.cat}・${s.fl}</b><div class="qty" style="font-size:.75rem">${R.length} ${C.hasTag?'組':'間'}・${g.n} 筆・${g.mixed?'':fmt(g.d,g.unit)+' / '+fmt(g.q,g.unit)+' '+g.unit+'・'}完成 ${sumTxt(g)}</div></div>${bulkBar('整層設為','b-floor')}
+     <table><thead><tr><th>${C.hasTag?'代號':'房號'}</th><th>${C.hasTag?'品名':'空間'}</th><th>${C.hasTag?'樘數':'代號'}</th><th class="n">完成</th></tr></thead><tbody>${R.map(x=>{const gg=sum(x.locs);return `<tr class="${x.ri===s.ri?'sel':''}"><td><button class="lnk" data-b="ri" data-ri="${x.ri}">${esc(x.rid)}</button></td><td>${esc(x.nm)}${kindTag(x.kind)}</td><td>${roomCodes(x)}</td><td class="n">${sumTxt(gg)}</td></tr>`}).join('')}</tbody></table>`;
+    const gr=sum(r.locs);const hist=r.locs.flatMap(l=>(HIST[l]||[]).map(h=>({...h,c:LOCS[l].tag?LOCS[l].rid:ITEMS[LOCS[l].ii].code})));
+    right=`<div class="detail"><div><div class="muted" style="font-size:.75rem">${C.cat}・${r.fl}</div><b style="font-size:1rem">${esc(r.rid)} ${esc(r.nm)}</b></div>
+    <div style="display:flex;justify-content:space-between;align-items:end"><span class="muted" style="font-size:.75rem">${r.locs.length} 筆${gr.mixed?'':'・'+fmt(gr.q,gr.unit)+' '+gr.unit}</span><span class="big">${sumTxt(gr)}</span></div>
+    <div>${detailLocs(r,'b')}</div>
+    <textarea class="note" placeholder="備註（例如：等待材料、業主變更）" id="b-note" data-bnote="${r.ri}">${esc(NOTE[r.ri]||'')}</textarea>
+    <div class="photo">＋ 拍照或上傳照片</div>
+    <div class="hist"><b style="color:var(--ink)">修改紀錄</b>${hist.concat([{c:'',t:'期初推估',who:'系統',d:'11/01 00:00'}]).slice(0,6).map(h=>`<div><span>${h.d} ${h.who}</span><span>${esc(h.c)} ${esc(h.t)}</span></div>`).join('')}</div></div>`}
+  return `<div class="app"><div class="bar"><b>進度登記</b><span class="sp"></span><span class="who">施工日期 2026-11-19・王工程師</span></div>${cfBar()}<div class="l2"><div class="col" data-keep="b-left">${left}</div><div class="col" data-keep="b-mid">${mid}</div><div class="col" data-keep="b-right">${right}</div></div></div>`}
+
+function renderC(){const s=S.c,C=CATS[s.ci];
+  const flChips=`<div class="flchips" style="border:0;padding:0"><button class="${s.fl===CODE_FL?'on':''}" data-c="fl" data-fl="${CODE_FL}" style="font-family:var(--font)">代號層<small>進料</small></button>${C.floors.map(f=>`<button class="${f===s.fl?'on':''}" data-c="fl" data-fl="${f}">${f}<small>${sumTxt(sum(floorLocs(s.ci,f)))}</small></button>`).join('')}</div>`;
+  let sheet;
+  if(s.fl===CODE_FL){sheet=codeLevel(s.ci,'c')}
+  else if(C.hasTag){const R=floorRooms(s.ci,s.fl);
+    sheet=`<table class="mx"><thead><tr><th>代號</th><th>標籤</th><th>位置</th><th class="cc">框</th><th class="cc">扇／五金</th><th class="n">完成</th></tr></thead><tbody>${R.map(r=>r.locs.map((li,k)=>{const l=LOCS[li],st=ITEMS[l.ii].tagSteps;return `<tr>${k===0?`<td rowspan="${r.locs.length}" class="mono" style="vertical-align:top"><b>${esc(r.rid)}</b><br><button class="btn" style="font-size:.66rem;padding:1px 5px" data-c="row" data-ri="${r.ri}">整組 100</button></td>`:''}<td class="mono">${esc(l.rid)}</td><td class="muted" style="font-size:.76rem">${esc(l.nm)}</td>${st.map((x,j)=>`<td class="cell"><label style="display:flex;gap:4px;align-items:center;justify-content:center;font-size:.72rem;cursor:pointer"><input type="checkbox" ${T[li][j]?'checked':''} data-tgc="${li}" data-k="${j}" id="c-tg-${li}-${j}">${x[0].slice(0,4)}</label></td>`).join('')}<td class="n">${val(li)}%</td></tr>`}).join('')).join('')}</tbody></table>`}
+  else{const R=floorRooms(s.ci,s.fl);const codes=C.items.filter(i=>ITEMS[i].floors.includes(s.fl));const g=sum(R.flatMap(r=>r.locs));
+    const cell=(r,i)=>{const li=r.locs.find(l=>LOCS[l].ii===i);if(li==null)return '<td class="na">·</td>';const o=ITEMS[i];return `<td class="cell" style="background:${P[li]>=100?'var(--ok-soft)':'transparent'}"><input class="pin" type="number" min="0" max="100" step="5" value="${P[li]}" data-setin="${li}" id="c-in-${li}" aria-label="${esc(r.rid)} ${esc(o.code)}"><small>${fmt(LOCS[li].q,o.unit)}</small></td>`};
+    sheet=`<table class="mx"><thead><tr><th>房號</th><th>空間</th>${codes.map(i=>{const o=ITEMS[i];return `<th class="cc" title="${esc(o.name)}">${esc(o.code)}<small>${o.unit}</small><button class="btn" style="font-size:.66rem;padding:1px 5px;margin-top:2px" data-c="col" data-ii="${i}">整欄 100</button></th>`}).join('')}<th class="n">房間</th><th></th></tr></thead>
+     <tbody>${R.map(r=>`<tr><td class="mono"><b>${esc(r.rid)}</b></td><td>${esc(r.nm)}${kindTag(r.kind)}</td>${codes.map(i=>cell(r,i)).join('')}<td class="n">${sumTxt(sum(r.locs))}</td><td><button class="btn" style="font-size:.7rem" data-c="row" data-ri="${r.ri}">整列 100</button></td></tr>`).join('')}</tbody>
+     <tfoot><tr><td colspan="2" style="text-align:left">本層代號完成率</td>${codes.map(i=>`<td>${fp(sum(itemFloorLocs(i,s.fl)).p)}</td>`).join('')}<td>${sumTxt(g)}</td><td></td></tr></tfoot></table>`}
+  return `<div class="app l3"><div class="bar"><b>整層登記</b><span class="sp"></span><span class="who">施工日期 2026-11-19・王工程師</span></div>${cfBar()}
+   <div class="tools"><select class="sel" id="c-cat" data-c="cat" aria-label="工項">${CATS.map(x=>`<option value="${x.ci}" ${x.ci===s.ci?'selected':''}>${x.cat}</option>`).join('')}</select>${flChips}</div>
+   ${s.fl===CODE_FL?'':bulkBar(`${s.fl} 整層設為（${floorLocs(s.ci,s.fl).length} 筆）`,'c-floor')}
+   <div class="sheet" data-keep="c-sheet">${sheet}</div></div>`}
+
+function renderD(){const s=S.d,C=CATS[s.ci];if(!C.floors.includes(s.fl))s.fl=C.floors[0];const R=floorRooms(s.ci,s.fl);
+  const size=r=>{const g=sum(r.locs);return g.mixed?r.locs.length*20:g.q};const max=Math.max(...R.map(size));
+  const blocks=R.map(r=>{const g=sum(r.locs);const p=g.mixed?g.done/g.n*100:g.p;const k=Math.sqrt(size(r)/max);return `<button class="blk ${s.sel===r.ri?'on':''}" data-d="blk" data-ri="${r.ri}" style="flex:${size(r)} 1 ${Math.max(78,k*300)}px;height:${Math.max(66,k*150)}px;background:${heat(p)};color:${heatInk(p)}" aria-label="${esc(r.rid)} ${esc(r.nm)} ${sumTxt(g)}"><span><b>${esc(r.rid)}</b> ${esc(r.nm)}</span><span style="display:flex;justify-content:space-between;gap:4px;align-items:end"><span>${r.kind==='代號組'?r.locs.length+' 樘':r.locs.map(l=>esc(ITEMS[LOCS[l].ii].code)).join(' ')}</span><span class="p">${sumTxt(g)}</span></span></button>`}).join('');
+  let pop='';if(s.sel!=null&&R.some(r=>r.ri===s.sel)){const r=ROOMS[s.sel];pop=`<div class="pop" style="right:16px;top:12px;width:300px;max-height:420px;overflow:auto"><div style="display:flex;justify-content:space-between;gap:6px"><b>${esc(r.rid)} ${esc(r.nm)}</b><button class="btn" data-d="close" aria-label="關閉">✕</button></div>${r.locs.map(li=>{const l=LOCS[li],o=ITEMS[l.ii];return `<div style="display:grid;gap:4px"><span>${l.tag?`<b class="mono">${esc(l.rid)}</b> <span class="muted" style="font-size:.72rem">${esc(l.nm)}</span>`:`<span class="code">${esc(o.code)}</span><span class="qty">${fmt(l.q,o.unit)} ${o.unit}</span>`}</span>${locInput(li,'d')}</div>`}).join('')}</div>`}
+  const g=sum(R.flatMap(r=>r.locs));
+  return `<div class="app l4"><div class="bar"><b>平面巡查</b><span class="sp"></span><div class="legend">0%<i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i>100%</div></div>
+   <div class="tools"><select class="sel" id="d-cat" data-d="cat" aria-label="工項">${CATS.map(x=>`<option value="${x.ci}" ${x.ci===s.ci?'selected':''}>${x.cat}</option>`).join('')}</select>
+   <div class="flchips" style="border:0;padding:0">${C.floors.map(f=>`<button class="${f===s.fl?'on':''}" data-d="fl" data-fl="${f}">${f}</button>`).join('')}</div>
+   <span class="qty">${s.fl}：${R.length} ${C.hasTag?'組':'間'}・完成 ${sumTxt(g)}</span></div>
+   <div style="position:relative"><div class="canvas">${blocks}</div>${pop}</div>
+   <div class="who" style="padding:6px 14px;border-top:1px solid var(--line)">磚塊大小依面積；不同單位的工項依筆數。正式版換成 ${s.fl} 平面圖（如 <code>天花板數量/${s.fl}/${s.fl}_最終標註.png</code>）上的房間多邊形。</div></div>`}
+
+function renderE(){const s=S.e,C=CATS[s.ci];const hasCL=C.items.some(i=>codeLoc(i)!=null);const fls=(hasCL?[CODE_FL]:[]).concat(C.floors);
+  const g=sum(C.rooms.flatMap(r=>r.locs));const rooms=C.rooms.filter(r=>r.fl!==CODE_FL);const roomsDone=rooms.filter(r=>r.locs.every(l=>val(l)>=100)).length;
+  const itemsDone=C.items.filter(i=>sum(ITEMS[i].locs).p>=99.5).length;
+  const fa=C.floors.map(f=>{const L=floorLocs(s.ci,f);const x=sum(L);return {f,p:x.mixed?L.reduce((a,l)=>a+val(l),0)/L.length:x.p,mixed:x.mixed}}).sort((a,b)=>a.p-b.p)[0];
+  let drawer='';if(s.open){const [ii,f]=s.open;const o=ITEMS[ii];
+    if(f===CODE_FL){drawer=`<div class="dh"><div style="flex:1;min-width:0"><div class="muted" style="font-size:.72rem">${C.cat}・代號層</div><b><span class="code">${esc(o.code)}</span>${esc(o.short.slice(0,26))}</b></div><button class="btn" data-e="close" aria-label="關閉">✕</button></div><div class="db">${codeLevel(s.ci,'e',ii)}</div>`}
+    else{const R=floorRooms(s.ci,f).filter(r=>r.locs.some(l=>LOCS[l].ii===ii));const x=sum(itemFloorLocs(ii,f));
+    drawer=`<div class="dh"><div style="flex:1;min-width:0"><div class="muted" style="font-size:.72rem">${C.cat}・${f}</div><b><span class="code">${esc(o.code)}</span>${esc(o.short.slice(0,26))}</b><div class="qty" style="font-size:.75rem">${fmt(x.d,o.unit)} / ${fmt(x.q,o.unit)} ${o.unit}（${fp(x.p)}）・${R.length} ${C.hasTag?'組':'間'}</div></div><button class="btn" data-e="close" aria-label="關閉">✕</button></div>
+    ${bulkBar(`${o.code} ${f} 整層設為`,'e-cell')}
+    <div class="db" data-keep="e-db">${R.map(r=>`<div style="padding:9px 14px;border-bottom:1px solid var(--line2);display:grid;gap:6px"><span>${roomTitle(r)}</span>${r.locs.map(li=>{const l=LOCS[li],oo=ITEMS[l.ii];return `<div class="${oo.ii===ii?'hl':''}" style="display:grid;gap:3px;padding:3px 6px"><span style="font-size:.76rem">${l.tag?`<b class="mono">${esc(l.rid)}</b> <span class="muted">${esc(l.nm)}</span>`:`<span class="code">${esc(oo.code)}</span><span class="qty">${fmt(l.q,oo.unit)} ${oo.unit}</span>`}</span>${locInput(li,'e')}</div>`}).join('')}</div>`).join('')}</div>`}}
+  return `<div class="app l5"><div class="bar"><b>進度總覽</b><span class="sp"></span><span class="who">統計至 2026-11-19</span></div>${cfBar()}
+   <div class="kpis"><div><b>${g.mixed?g.done+'/'+g.n:fp(g.p)}</b><span>${C.cat} ${g.mixed?'完成筆數（單位不同不加權）':'數量完成率'}</span></div><div><b>${roomsDone} / ${rooms.length}</b><span>${C.hasTag?'全部完成的代號組':'全部代號完成的房間'}</span></div><div><b>${itemsDone} / ${C.items.length}</b><span>已完成代號</span></div><div><b>${fa?fa.f+'・'+fp(fa.p):'—'}</b><span>最落後樓層${fa&&fa.mixed?'（各筆平均）':''}</span></div></div>
+   <div class="tools"><div class="flchips" style="border:0;padding:0">${CATS.map(x=>`<button class="${x.ci===s.ci?'on':''}" data-e="cat" data-ci="${x.ci}" style="font-family:var(--font)">${x.cat}<small>${sumTxt(sum(x.rooms.flatMap(r=>r.locs)))}</small></button>`).join('')}</div></div>
+   <div class="hm" data-keep="e-hm"><table><thead><tr><th class="rh">代號 ＼ 樓層</th>${fls.map(f=>`<th>${f===CODE_FL?'代號層':f}</th>`).join('')}<th>網站</th><th>期初</th></tr></thead><tbody>${C.items.map(i=>{const o=ITEMS[i];const op=o.used!=null&&o.total?Math.min(100,o.used/o.total*100):null;const w=sum(o.locs).p;return `<tr><th class="rh" title="${esc(o.name)}"><span class="code">${esc(o.code)}</span><span class="muted">${esc(o.short.slice(0,12))}</span></th>${fls.map(f=>{const L=itemFloorLocs(i,f);if(!L.length)return f===CODE_FL?`<td><button data-e="cell" data-ii="${i}" data-fl="${f}" style="background:transparent;border:1px dashed var(--line)" aria-label="${esc(o.code)} 進料">進料</button></td>`:'<td><span class="na"></span></td>';const p=sum(L).p;return `<td><button data-e="cell" data-ii="${i}" data-fl="${f}" style="background:${heat(p)};color:${heatInk(p)}" aria-label="${esc(o.code)} ${f} ${fp(p)}">${Math.round(p)}</button></td>`}).join('')}<td class="pct" style="padding:0 6px;font-size:.75rem">${fp(w)}</td><td class="mono ${o.used>o.total*1.0001?'diffbad':''}" style="padding:0 6px;font-size:.75rem" title="CSV 已用 ${o.used??'—'} ÷ 圖面 ${fmt(o.total,o.unit)}">${fp(op)}</td></tr>`}).join('')}</tbody></table>
+   <p class="muted" style="font-size:.72rem;margin-top:8px">「期初」= CSV 已用數量 ÷ 圖面合計，紅字表示已用超過圖面合計。示範的完成% 是隨機的，正式上線時由期初匯入。</p></div>
+   <div class="drawer ${s.open?'open':''}">${drawer}</div></div>`}
+
+const stage=document.getElementById('stage'),ldesc=document.getElementById('ldesc');
+function render(){const L=LAYOUTS.find(l=>l.id===cur);
+  ldesc.innerHTML=`<div><h4>做法</h4>${L.desc}</div><div><h4>優點</h4>${L.pros}</div><div><h4>限制</h4>${L.cons}</div>`;
+  const keep={};stage.querySelectorAll('[data-keep]').forEach(n=>keep[n.dataset.keep]=[n.scrollTop,n.scrollLeft]);
+  const ae=document.activeElement,fid=ae&&stage.contains(ae)?ae.id:null;
+  stage.innerHTML={A:renderA,B:renderB,C:renderC,D:renderD,E:renderE}[cur]();
+  stage.querySelectorAll('[data-keep]').forEach(n=>{const k=keep[n.dataset.keep];if(k){n.scrollTop=k[0];n.scrollLeft=k[1]}});
+  if(fid){const n=document.getElementById(fid);if(n){n.focus({preventScroll:true});if(n.type==='search')n.setSelectionRange(n.value.length,n.value.length)}}}
+function bulkScope(scope){
+  if(scope==='a-floor')return [floorLocs(S.a.ci,S.a.fl),`${CATS[S.a.ci].cat} ${S.a.fl} 整層`];
+  if(scope==='b-floor')return [floorLocs(S.b.ci,S.b.fl),`${CATS[S.b.ci].cat} ${S.b.fl} 整層`];
+  if(scope==='c-floor')return [floorLocs(S.c.ci,S.c.fl),`${CATS[S.c.ci].cat} ${S.c.fl} 整層`];
+  if(scope==='e-cell'){const [ii,f]=S.e.open;return [itemFloorLocs(ii,f),`${ITEMS[ii].code} ${f} 整層`]}}
+stage.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;const d=t.dataset;
+  if(d.cf){if(d.cf==='ok'&&CF)CF.locs.forEach(l=>setLoc(l,CF.v,CF.label));CF=null;render();return}
+  if(d.bulk){if(d.bulk==='a-room'){ROOMS[S.a.ri].locs.forEach(li=>{const l=LOCS[li],v=+d.v;S.a.draft[li]=l.tag?(v>=100?[1,1]:v>=ITEMS[l.ii].tagSteps[0][1]*100?[1,0]:[0,0]):v})}else{const [locs,label]=bulkScope(d.bulk);askBulk(locs,+d.v,label)}render();return}
+  if(d.set!==undefined){if(cur==='A'&&S.a.view==='loc'){S.a.draft[d.set]=+d.v}else setLoc(+d.set,+d.v);render();return}
+  if(d.tg!==undefined){const li=+d.tg,k=+d.k;if(cur==='A'&&S.a.view==='loc'){const base=(S.a.draft[li]||T[li]).slice();base[k]=base[k]?0:1;S.a.draft[li]=base}else setTag(li,k,!T[li][k]);render();return}
+  if(d.mat!==undefined){const n=document.getElementById(d.ns+'-mat-'+d.mat);const q=+n.value;if(q>0){(MAT[d.mat]=MAT[d.mat]||[]).push({d:'11/19',q})}render();return}
+  if(d.a){const s=S.a;CF=null;
+    if(d.a==='cat'){s.ci=+d.ci;s.view='fl'}else if(d.a==='fl'){s.fl=d.fl;s.view=d.fl===CODE_FL?'code':'room';s.q=''}else if(d.a==='room'){s.ri=+d.ri;s.view='loc';s.draft={}}
+    else if(d.a==='go'){s.view=d.v;s.draft={}}else if(d.a==='save'){for(const k in s.draft){const l=LOCS[k];if(l.tag){s.draft[k].forEach((x,j)=>{if(x!==T[k][j])setTag(+k,j,!!x)})}else setLoc(+k,s.draft[k])}s.draft={}}else if(d.a==='cancel'){s.draft={}}
+    render();return}
+  if(d.b){const s=S.b;CF=null;if(d.b==='fl'){s.ci=+d.ci;s.fl=d.fl;if(d.fl!==CODE_FL)s.ri=floorRooms(s.ci,s.fl)[0].ri}else if(d.b==='ri'){s.ri=+d.ri}render();return}
+  if(d.c){const s=S.c;if(d.c==='fl'){s.fl=d.fl;CF=null}else if(d.c==='col'){askBulk(itemFloorLocs(+d.ii,s.fl),100,`${ITEMS[+d.ii].code} ${s.fl} 整欄`)}else if(d.c==='row'){const r=ROOMS[+d.ri];askBulk(r.locs,100,`${r.rid} 整列`)}render();return}
+  if(d.d){const s=S.d;if(d.d==='blk'){s.sel=+d.ri}else if(d.d==='fl'){s.fl=d.fl;s.sel=null}else if(d.d==='close'){s.sel=null}render();return}
+  if(d.e){const s=S.e;CF=null;if(d.e==='cat'){s.ci=+d.ci;s.open=null}else if(d.e==='cell'){s.open=[+d.ii,d.fl]}else if(d.e==='close'){s.open=null}render();return}
+});
+stage.addEventListener('change',e=>{const t=e.target,d=t.dataset;
+  if(d.setin!==undefined){if(cur==='A'&&S.a.view==='loc'){S.a.draft[d.setin]=clamp(t.value)}else setLoc(+d.setin,t.value);render()}
+  else if(d.tgc!==undefined){setTag(+d.tgc,+d.k,t.checked);render()}
+  else if(d.brange!==undefined){setLoc(+d.brange,t.value);render()}
+  else if(d.c==='cat'){S.c.ci=+t.value;S.c.fl=CATS[S.c.ci].floors[0];CF=null;render()}
+  else if(d.d==='cat'){S.d.ci=+t.value;S.d.fl=CATS[S.d.ci].floors[0];S.d.sel=null;render()}
+});
+stage.addEventListener('input',e=>{const t=e.target,d=t.dataset;
+  if(d.aSearch){S.a.q=t.value;render()}
+  else if(d.bnote){NOTE[d.bnote]=t.value}
+  else if(d.brange!==undefined){const n=document.getElementById('b-in-'+d.brange);if(n)n.value=t.value}});
+document.getElementById('resetDemo').onclick=()=>{seed();for(const k in HIST)delete HIST[k];S.a.draft={};CF=null;render()};
+render();
+</script>

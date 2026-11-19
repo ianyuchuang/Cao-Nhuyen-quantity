@@ -1,0 +1,22 @@
+<p>第一版完成後交給 Fable 5.2 獨立審查。它用 openpyxl 與 CSV 比對萃取資料，確認<b>各表列數與來源完全吻合</b>，總表合計也相符（只有四捨五入尾差）。主要問題在計算規則，下表是各項意見與第二版的處理方式。</p>
+<div class="tbl"><table>
+<tr><th>嚴重度</th><th>審查意見</th><th>第二版處理</th></tr>
+<tr><td><span class="tag" style="color:var(--bad)">高</span></td><td>CSV 用合約數量、網站用圖面數量，45 個代號差超過 5%，直接匯出執行率會失真（C6 146%、C6a 6%）</td><td>你決定直接用圖面完成量匯出，接受執行率超過 100%；期初因此改為「已用 ÷ 圖面合計」</td></tr>
+<tr><td><span class="tag" style="color:var(--bad)">高</span></td><td>沒有期初進度，CSV 已有累計使用數量</td><td>新增 <code>opening</code> 資料表，期初依比例平均設到各位置；版面 C 提前到 P1 供更正</td></tr>
+<tr><td><span class="tag" style="color:var(--bad)">高</span></td><td>進料是整批入帳，不適合逐房間填</td><td>你決定進料在代號層整批填數量；新增 <code>material</code> 資料表與「代號層」頁</td></tr>
+<tr><td><span class="tag" style="color:var(--bad)">高</span></td><td>整體 % 會覆蓋細項 %；「各 100%」類工項用三細項平均與來源定義不符</td><td>每筆只存一個完成%；你決定可在樓層、房間、代號細項三層填寫，上層覆蓋底下前先提示；門窗逐樘分門框、門扇</td></tr>
+<tr><td><span class="tag" style="color:var(--bad)">高</span></td><td>每日使用數量沒定義補登、下修、改版、日結</td><td>第 3 節補上累計取法、下修可為負；你決定不日結、可隨時補登，所以匯出檔標記產生時間</td></tr>
+<tr><td><span class="tag w">中</span></td><td>F13 是天然石材卻放在非貼磚地坪</td><td>F13 移到「天然石材（地坪）」；原分類改名「地坪（EPOXY／粉光）」只放 F2、F3、F12</td></tr>
+<tr><td><span class="tag w">中</span></td><td>W2～W8 同時是牆面與鋁窗代號</td><td><code>item</code> 以項次為主鍵；畫面一律在工項之下顯示代號</td></tr>
+<tr><td><span class="tag w">中</span></td><td>細項名稱與權重只取分類第一個表頭</td><td>萃取改為每個項次各自讀施工細項表；門窗、防水閘門標示「依類別」</td></tr>
+<tr><td><span class="tag w">中</span></td><td>資料表缺房間主檔、穩定 ID、審核、離線去重、版本、日結、期初</td><td>新增 <code>room</code>、<code>opening</code>、<code>material</code>、<code>qty_version</code>；<code>progress</code> 補 UUID、舊值、版本、填寫層級；名稱不再截斷</td></tr>
+<tr><td><span class="tag w">中</span></td><td>多人離線登記同一房間會互相覆蓋</td><td>送出時帶「看到的舊值」，不一致就提示</td></tr>
+<tr><td><span class="tag w">中</span></td><td>手機按鈕太小、點一下就生效、儲存鈕無作用</td><td>版面 A 按鈕改 48 × 44 px；改過的先標黃，按「儲存」才送出，可取消</td></tr>
+<tr><td><span class="tag w">中</span></td><td>每次操作整塊重繪，清單捲回頂端、備註被清掉</td><td>重繪時保留各捲動區位置與焦點；備註另存</td></tr>
+<tr><td><span class="tag w">中</span></td><td>版面 E 把 m² 與 m 加在一起；「完成房間」數的不是房間</td><td>不同單位不加權，改算完成筆數；改為真正的「全部代號完成的房間」</td></tr>
+<tr><td><span class="tag w">中</span></td><td>誤解 <code>未施作工項清單.xlsx</code>（其實是使用數量為 0 的項目）</td><td>改寫問題後，你決定已 100% 的代號不特別處理</td></tr>
+<tr><td><span class="tag">低</span></td><td>同房多列只留第一個名稱；先四捨五入再加總有尾差；求值錯誤只略過；SUM 跨欄只加頭尾</td><td>名稱改為串接；保留 4 位小數；求值失敗直接中止；SUM 改為整個範圍</td></tr>
+<tr><td><span class="tag">低</span></td><td>熱力圖白字對比不足；表格列無法用鍵盤操作；頁籤沒有方向鍵</td><td>70% 以上才用白字；房號改成按鈕；頁籤支援左右鍵與 tabpanel</td></tr>
+<tr><td><span class="tag">低</span></td><td>漏問：可否補登、輕隔間等沒有分層數量的工項、CSV 日期沒有年份</td><td>已請你決定：可隨時補登；其他工項等算完分層數量再加</td></tr>
+</table></div>
+<p class="muted" style="font-size:.85rem">Fable 的總評：需求三點都有做到、五個版面確實有差異；建議優先做 A（手機登記）＋ E（總覽）＋ C（期初與更正）。第二、三版的流程與決策是依你後來的指示調整，未再送審。</p>
