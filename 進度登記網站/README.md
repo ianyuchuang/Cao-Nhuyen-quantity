@@ -34,7 +34,7 @@
 | OAuth 用戶端 ID | `902248037106-cjn6lprnhovn2lncu3j3e8orgu7d6k6p.apps.googleusercontent.com`，來源：`https://ianyuchuang.github.io`、`http://localhost:8765` |
 | 「設定」表 | 網站網址、OAuth 用戶端 ID、權限來源＝人員表、上線日＝2026-11-19 已填 |
 | 期初 | 2026-11-19 已從正式版同步並設定期初（188 層級、2,024 位置）；上線前使用數量超過圖面的 7 個代號期初以 100% 計：F1、F5、C15、W8、外牆石材、M3、M3泛水 |
-| 每日同步觸發 | **尚未安裝**（選單「安裝每日同步觸發」） |
+| 每日同步觸發 | 2026-11-19 已安裝：每天 02:00（台北）執行 `nightlyJob`＝從正式版同步主表＋全部重算；觸發器用「上端」（最新儲存的程式碼） |
 | GitHub Pages | `https://ianyuchuang.github.io/Cao-Nhuyen-quantity/`，來源為 `gh-pages` 分支（只含 `web/` 的檔案＋`.nojekyll`，與 `main` 無共同歷史） |
 
 **更新網頁**：改完 `web/` 後，在 `D:\分層數量` 執行下列指令，把 `web/` 打包成新的 `gh-pages` commit 推上去（不會切換分支、不動工作資料夾）：
