@@ -21,6 +21,12 @@ for i, r in enumerate(csv_rows[3:]):
         text[no] = (r[1], r[2])
 
 data = json.load(open(os.path.join(HERE, 'data.json'), encoding='utf-8'))
+
+# 門窗每一樘的房號（門窗房號對照.csv，2026-11-19 依圖面座標對應）；待確認者維持用代號當房間
+DOOR_ROOM = {}
+for r in csv.DictReader(open(os.path.join(HERE, '門窗房號對照.csv'), encoding='utf-8-sig')):
+    if r['對應房號'] and r['對應房號'] != '待確認':
+        DOOR_ROOM[r['標籤序號']] = (r['對應房號'], r['空間名稱'])
 locs, items = [], []
 for c in data:
     for it in c['items']:
@@ -54,6 +60,9 @@ for c in data:
                 continue
             if it.get('tagSteps'):
                 kind, room = '單樘', it['code']
+                if rid in DOOR_ROOM:  # 位置ID 仍是 層級|樓層|標籤序號，只換房間ID 與說明
+                    room, rname = DOOR_ROOM[rid]
+                    nm = f'{room} {rname}'.strip()
             elif c['cat'] == '防水閘門':
                 kind, room = '標籤', rid
             elif re.match(r'^[A-Z]?\d{2,4}[a-z]?(\+\d+[a-z]?)?$', rid, re.I):
