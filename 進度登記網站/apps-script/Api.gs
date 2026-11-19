@@ -218,7 +218,7 @@ function material_(user, req) {
 // ---------- history ----------
 /**
  * req: { ids:[位置ID...], lv }
- * 編輯者看到所有人的紀錄；檢視者只看到自己與期初推估的紀錄。
+ * 所有核准的人都看得到全部人的紀錄與進料；登記人顯示人員表的名稱（沒有就顯示 email）。
  */
 function history_(user, req) {
   var ids = Object.create(null);
@@ -232,9 +232,8 @@ function history_(user, req) {
       var r = v[i];
       if (!ids[r[LOG_COL.ID - 1]]) continue;
       var by = String(r[LOG_COL.BY - 1]);
-      if (user.role !== 'editor' && by.toLowerCase() !== user.email && by !== CFG.OPENING_BY) continue;
       recs.push({ id: r[LOG_COL.ID - 1], detail: r[LOG_COL.DETAIL - 1], p: fromFrac_(r[LOG_COL.PCT - 1]), old: fromFrac_(r[LOG_COL.OLD - 1]),
-        date: dateStr_(r[LOG_COL.DATE - 1]), level: r[LOG_COL.LEVEL - 1], by: by,
+        date: dateStr_(r[LOG_COL.DATE - 1]), level: r[LOG_COL.LEVEL - 1], by: nameOfEmail_(by),
         ts: r[LOG_COL.TS - 1] instanceof Date ? Utilities.formatDate(r[LOG_COL.TS - 1], CFG.TZ, 'yyyy-MM-dd HH:mm') : String(r[LOG_COL.TS - 1]),
         reason: r[LOG_COL.REASON - 1], note: r[LOG_COL.NOTE - 1] });
     }
@@ -248,11 +247,10 @@ function history_(user, req) {
       ms.getRange(2, 1, mn, MAT_WIDTH).getValues().forEach(function (r) {
         if (trim_(r[0]) !== lv) return;
         var by = String(r[MAT_COL.BY - 1]);
-        if (user.role !== 'editor' && by.toLowerCase() !== user.email && by !== CFG.OPENING_BY) return;
-        mats.push({ date: dateStr_(r[MAT_COL.DATE - 1]), qty: r[MAT_COL.QTY - 1], by: by, note: r[MAT_COL.NOTE - 1] });
+        mats.push({ date: dateStr_(r[MAT_COL.DATE - 1]), qty: r[MAT_COL.QTY - 1], by: nameOfEmail_(by), note: r[MAT_COL.NOTE - 1] });
       });
     }
     mats.reverse();
   }
-  return { ok: true, records: recs, materials: mats.slice(0, 100), all: user.role === 'editor' };
+  return { ok: true, records: recs, materials: mats.slice(0, 100), all: true };
 }

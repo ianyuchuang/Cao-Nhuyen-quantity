@@ -5,7 +5,7 @@
  *    驗證失敗的 token 負快取 60 秒；每個帳號每分鐘最多 RATE_PER_MIN 次請求。
  * 2. 權限來源（「設定」表「權限來源」）：
  *    - 「試算表共用」（預設）：本試算表編輯者（含擁有者）→ editor；檢視者／加註者 → viewer。
- *    - 「人員表」：本試算表編輯者 → editor；「人員」表 E 欄「核准」有勾選的帳號 → viewer。
+ *    - 「人員表」：本試算表編輯者 → editor；「人員」表 D 欄「核准」有勾選的帳號 → viewer。
  *      工程師不必共用試算表，就看不到主表的單價、複價（建議）。
  *    編輯者／共用名單快取 10 分鐘；人員表快取 PEOPLE_TTL 秒，而且在試算表編輯「人員」「設定」表時
  *    onEdit 會立即清掉（選單「清除權限快取」也可以手動清）。
@@ -125,15 +125,28 @@ function warmAclCache() {
 function aclCacheStatus() {
   var c = CacheService.getScriptCache().getAll(['acl', 'people']);
   var s = 'acl 快取：' + (c.acl ? '有' : '無') + '；people 快取：' + (c.people ? '有' : '無');
+  if (c.people) {
+    var m = JSON.parse(c.people);
+    s += '（人員 ' + Object.keys(m).length + ' 人，核准 ' + Object.keys(m).filter(function (e) { return m[e].ok; }).length + ' 人）';
+  }
   console.log(s);
   return s;
 }
 
 /**
- * 「人員」表：A Google 帳號、B 顯示名稱、C 負責工項、D 備註、E 核准（勾選框）
- * 只有 E 欄勾選（TRUE）＝可用；未勾選、空白或任何文字＝不可用（白名單）。
+ * 「人員」表：A Google 帳號、B 顯示名稱、C 備註、D 核准（勾選框）
+ * 只有「核准」欄勾選（TRUE）＝可用；未勾選、空白或任何文字＝不可用（白名單）。
+ * 「核准」欄依第 1 列表頭找（找不到就用 D 欄），欄位調整時不會認錯欄。
  * 回傳 { email: { name, ok, status } }
  */
+var PEOPLE_OK_COL = 4;
+function peopleOkCol_(sh) {
+  var w = Math.min(sh.getMaxColumns(), 10);
+  var h = sh.getRange(1, 1, 1, w).getValues()[0];
+  for (var j = 0; j < h.length; j++) if (trim_(h[j]) === '核准') return j + 1;
+  return PEOPLE_OK_COL;
+}
+
 function peopleMap_() {
   var cache = CacheService.getScriptCache();
   var hit = cache.get('people');
@@ -141,16 +154,23 @@ function peopleMap_() {
   var map = {};
   var sh = ss_().getSheetByName(CFG.SH.PEOPLE);
   if (sh && sh.getLastRow() > 1) {
-    var cols = Math.min(5, sh.getMaxColumns());
+    var oc = peopleOkCol_(sh);
+    var cols = Math.min(Math.max(oc, 2), sh.getMaxColumns());
     sh.getRange(2, 1, sh.getLastRow() - 1, cols).getValues().forEach(function (r) {
       var e = trim_(r[0]).toLowerCase();
       if (!e || e.indexOf('@') <= 0 || map[e]) return;
-      var ok = cols >= 5 && r[4] === true;
+      var ok = cols >= oc && r[oc - 1] === true;
       map[e] = { name: safeText_(r[1], 60), status: ok ? '核准' : '未核准', ok: ok };
     });
   }
   cache.put('people', JSON.stringify(map), CFG.PEOPLE_TTL);
   return map;
+}
+
+/** email → 顯示名稱（人員表有名稱就用名稱，否則原樣） */
+function nameOfEmail_(by) {
+  var m = peopleMap_(), k = String(by).toLowerCase();
+  return Object.prototype.hasOwnProperty.call(m, k) && m[k].name ? m[k].name : String(by);
 }
 
 function displayName_(user) {
@@ -160,7 +180,7 @@ function displayName_(user) {
 }
 
 /**
- * 權限來源為「人員表」時，沒有權限的人登入就把帳號寫進「人員」表、E 欄「核准」未勾選，
+ * 權限來源為「人員表」時，沒有權限的人登入就把帳號寫進「人員」表、「核准」未勾選，
  * 管理者勾選後即可使用（onEdit 立即清快取；最慢 PEOPLE_TTL 秒）。
  * 回傳 'added'（剛加入）、'pending'（已在名單、未勾選）或 ''（不適用）
  */
@@ -172,21 +192,23 @@ function registerPending_(user) {
   if (!lock.tryLock(10000)) return 'pending';
   try {
     var sh = sheet_(CFG.SH.PEOPLE);
-    if (sh.getMaxColumns() < 5) sh.insertColumnsAfter(sh.getMaxColumns(), 5 - sh.getMaxColumns());
-    var h = trim_(sh.getRange(1, 5).getValue());
-    if (!h || h === '狀態') sh.getRange(1, 5).setValue('核准');
+    if (sh.getMaxColumns() < PEOPLE_OK_COL) sh.insertColumnsAfter(sh.getMaxColumns(), PEOPLE_OK_COL - sh.getMaxColumns());
+    var oc = peopleOkCol_(sh);
+    if (!trim_(sh.getRange(1, oc).getValue())) sh.getRange(1, oc).setValue('核准');
     var n = sh.getLastRow() - 1;
-    var rows = n > 0 ? sh.getRange(2, 1, n, 5).getValues() : [];
+    var rows = n > 0 ? sh.getRange(2, 1, n, oc).getValues() : [];
     var pending = 0;
     for (var i = 0; i < rows.length; i++) {
       if (trim_(rows[i][0]).toLowerCase() === user.email) return 'pending';
-      if (rows[i][4] !== true) pending++;
+      if (rows[i][oc - 1] !== true) pending++;
     }
     if (pending >= MAX_PENDING) return 'pending';
     var r = sh.getLastRow() + 1;
-    sh.getRange(r, 1, 1, 5).setValues([[safeText_(user.email, 120), safeText_(user.gname, 60), '',
-      '網站登入自動加入 ' + todayStr_(), false]]);
-    try { sh.getRange(r, 5).insertCheckboxes(); } catch (e) { /* 已有勾選框驗證時忽略 */ }
+    var row = [safeText_(user.email, 120), safeText_(user.gname, 60), '網站登入自動加入 ' + todayStr_()];
+    while (row.length < oc - 1) row.push('');
+    row.push(false);
+    sh.getRange(r, 1, 1, oc).setValues([row]);
+    try { sh.getRange(r, oc).insertCheckboxes(); } catch (e) { /* 已有勾選框驗證時忽略 */ }
     clearAclCache_();
     return 'added';
   } finally { lock.releaseLock(); }
