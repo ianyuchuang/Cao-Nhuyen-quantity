@@ -90,6 +90,7 @@ select.sel{font:inherit;font-size:.88rem;padding:6px;border:1px solid var(--line
 .codes span{font-family:var(--mono);font-size:.7rem;padding:0 4px;border:1px solid var(--line);border-radius:2px;color:var(--muted)}
 .codes span.ok{border-color:var(--ok);color:var(--ok)}
 .empty{padding:24px 16px;color:var(--muted)}
+.note{margin:0;padding:8px 14px;font-size:.76rem;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--line2)}
 
 /* 版面 A：手機逐層 */
 .pa{max-width:520px;margin:0 auto;background:var(--paper);border:1px solid var(--line);min-height:70vh;display:flex;flex-direction:column}

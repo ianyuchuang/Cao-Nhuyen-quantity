@@ -205,6 +205,8 @@ function material_(user, req) {
     var seen = uuidSet_(sh, MAT_COL.UUID);
     if (!seen[uuid]) {
       sh.getRange(sh.getLastRow() + 1, 1, 1, MAT_WIDTH).setValues([[it.lv, it.name, it.unit, date, round_(qty, 4), user.email, new Date(), uuid, safeText_(req.note)]]);
+      SpreadsheetApp.flush();
+      recalcLevels_([it.lv]); // 進料佔完成量 50%，到貨當天要計入每日數量
     }
     var m = materialSummary_()[it.lv] || { sum: 0, last: '' };
     return { ok: true, dup: !!seen[uuid], lv: it.lv, sum: round_(m.sum, 3), last: m.last };
@@ -246,7 +248,7 @@ function history_(user, req) {
       ms.getRange(2, 1, mn, MAT_WIDTH).getValues().forEach(function (r) {
         if (trim_(r[0]) !== lv) return;
         var by = String(r[MAT_COL.BY - 1]);
-        if (user.role !== 'editor' && by.toLowerCase() !== user.email) return;
+        if (user.role !== 'editor' && by.toLowerCase() !== user.email && by !== CFG.OPENING_BY) return;
         mats.push({ date: dateStr_(r[MAT_COL.DATE - 1]), qty: r[MAT_COL.QTY - 1], by: by, note: r[MAT_COL.NOTE - 1] });
       });
     }

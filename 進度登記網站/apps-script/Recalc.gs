@@ -54,7 +54,26 @@ function loadLogsByLevel_(levels) {
   return out;
 }
 
-/** 重算指定層級的逐日完成量，寫到「網站每日數量」 */
+/** 依層級讀「進料」：{ 層級: [{d, q}]（依日期排序） } */
+function loadMatsByLevel_(levels) {
+  var want = Object.create(null);
+  levels.forEach(function (lv) { want[lv] = 1; });
+  var sh = sheet_(CFG.SH.MAT);
+  var n = sh.getLastRow() - 1;
+  var out = {};
+  if (n <= 0) return out;
+  sh.getRange(2, 1, n, 5).getValues().forEach(function (r) {
+    var lv = trim_(r[MAT_COL.LV - 1]);
+    if (!want[lv]) return;
+    var d = dateStr_(r[MAT_COL.DATE - 1]);
+    if (!d) return;
+    (out[lv] || (out[lv] = [])).push({ d: d, q: num_(r[MAT_COL.QTY - 1]) });
+  });
+  Object.keys(out).forEach(function (lv) { out[lv].sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; }); });
+  return out;
+}
+
+/** 重算指定層級的逐日完成量（含進料那一半），寫到「網站每日數量」 */
 function recalcLevels_(levels) {
   var goLive = goLive_();
   if (!goLive || !levels.length) return { skipped: goLive ? 0 : '尚未設定上線日', levels: 0 };
@@ -69,6 +88,8 @@ function recalcLevels_(levels) {
   var locsByLv = {};
   L.locs.forEach(function (l) { (locsByLv[l.lv] || (locsByLv[l.lv] = [])).push(l); });
   var logs = loadLogsByLevel_(levels);
+  var matsByLv = loadMatsByLevel_(levels);
+  var W = CFG.MAT_WEIGHT;
   var base = addDays_(goLive, -1);
   var done = 0, missing = [];
 
@@ -79,13 +100,18 @@ function recalcLevels_(levels) {
     var g = logs[lv] || {};
     // 每個位置一個指標，隨日期前進
     var st = locs.map(function (l) { return { q: l.q, recs: g[l.id] || [], k: -1 }; });
+    var total = locs.reduce(function (s, l) { return s + l.q; }, 0);
+    var mats = matsByLv[lv] || [], mk = 0, mcum = 0;
+    // 累計(D)＝圖面合計 × W × 進料比例(D) ＋ Σ 位置數量 × (1−W) × 施作%(D)
     var cumAt = function (D) {
       var s = 0;
       st.forEach(function (x) {
         while (x.k + 1 < x.recs.length && x.recs[x.k + 1].d <= D) x.k++;
         if (x.k >= 0) s += x.q * x.recs[x.k].p / 100;
       });
-      return s;
+      while (mk < mats.length && mats[mk].d <= D) { mcum += mats[mk].q; mk++; }
+      var m = total > 0 ? Math.min(1, Math.max(0, mcum / total)) : 0;
+      return W * total * m + (1 - W) * s;
     };
     var prev = cumAt(base);
     var out = cols.map(function (D) {
@@ -124,29 +150,43 @@ function menuRecalcAll() {
 
 /**
  * 選單：設定期初
- * 期初 = 上線日之前正式版的使用數量（本表主表中，日期 < 上線日的日期欄合計）。
- * 期初% = 期初 ÷ 圖面合計（上限 100%），平均設到該層級每個位置，施工日期記為上線日前一天、登記人「系統（期初推估）」。
- * J 欄寫期初數量（不設上限），所以上線當天「網站累計」＝正式版使用數量。
+ * 期初總% ＝ 上線日前正式版使用數量（主表日期 < 上線日的日期欄合計）÷ 圖面合計（上限 100%）。
+ * 依「進料 50%＋施作 50%」拆成：
+ *   進料期初比例 ＝ min(1, 期初總% ÷ 50%)（例外：CFG.OPENING_MAT_FULL_* 的工項／層級＝1）→ 寫進「進料」表
+ *   施作期初%   ＝ max(0, (期初總% − 50%) ÷ 50%) → 平均設到每個位置，寫進「進度紀錄」
+ * 兩者的日期都記為上線日前一天、登記人「系統（期初推估）」；重設時先刪掉舊的期初列。
+ * J 欄寫「網站推估的上線前累計」＝圖面合計 ×（50% × 進料期初比例 ＋ 50% × 施作期初%），
+ * 所以 G 網站累計＝J＋逐日合計＝目前網站完成量；與正式版的差額（例如例外代號、超過圖面的代號）會出現在 I 欄。
  */
 function menuSetOpening() {
   var goLive = goLive_();
   if (!goLive) return alert_('請先在「設定」表填「上線日」。');
   var ui = ui_();
-  var logSh = sheet_(CFG.SH.LOG);
-  var already = false;
-  if (logSh.getLastRow() > 1) {
-    already = logSh.getRange(2, LOG_COL.LEVEL, logSh.getLastRow() - 1, 1).getValues()
-      .some(function (r) { return r[0] === CFG.OPENING_LEVEL; });
-  }
   if (ui) {
-    var msg = '以上線日 ' + goLive + ' 前正式版的使用數量設定期初。\n' +
-      (already ? '⚠ 已經設定過期初；再設一次會新增一批期初紀錄（取代舊的期初），工程師已登記的不受影響。\n' : '') + '要繼續嗎？';
+    var msg = '以上線日 ' + goLive + ' 前正式版的使用數量設定期初（進料 50%＋施作 50%）。\n' +
+      '會先刪掉舊的期初紀錄（進度紀錄、進料），工程師已登記的不受影響。要繼續嗎？';
     if (ui.alert('設定期初', msg, ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
   }
   var r = setOpening_(goLive);
-  alert_('已設定 ' + r.levels + ' 個層級、' + r.locs + ' 個位置的期初。' +
-    (r.over.length ? '\n\n上線前使用數量超過圖面合計（期初以 100% 計）：\n' + r.over.join('\n') : '') +
+  alert_('已設定 ' + r.levels + ' 個層級、' + r.locs + ' 個位置的期初；進料期初 ' + r.mats + ' 筆。' +
+    (r.over.length ? '\n\n上線前使用數量超過圖面合計（期初總%以 100% 計）：\n' + r.over.join('\n') : '') +
     (r.missing.length ? '\n\n主表找不到：' + r.missing.join('、') : ''));
+}
+
+function openingMatFull_(it) {
+  return CFG.OPENING_MAT_FULL_CATS.indexOf(it.cat) >= 0 || CFG.OPENING_MAT_FULL_LVS.indexOf(it.lv) >= 0;
+}
+
+/** 刪掉某欄等於 value 的列（整張表重寫，保留其他列順序） */
+function removeRowsBy_(sh, width, col, value) {
+  var n = sh.getLastRow() - 1;
+  if (n <= 0) return 0;
+  var v = sh.getRange(2, 1, n, width).getValues();
+  var keep = v.filter(function (r) { return String(r[col - 1]) !== value; });
+  if (keep.length === v.length) return 0;
+  sh.getRange(2, 1, n, width).clearContent();
+  if (keep.length) sh.getRange(2, 1, keep.length, width).setValues(keep);
+  return v.length - keep.length;
 }
 
 function setOpening_(goLive) {
@@ -171,12 +211,18 @@ function setOpening_(goLive) {
       usedBefore[lv] = round_(s, 4);
     });
 
+    // 舊的期初列先刪掉（避免重設時進料重複累加）
+    var logSh = sheet_(CFG.SH.LOG), matSh = sheet_(CFG.SH.MAT);
+    removeRowsBy_(logSh, LOG_WIDTH, LOG_COL.BY, CFG.OPENING_BY);
+    removeRowsBy_(matSh, MAT_WIDTH, MAT_COL.BY, CFG.OPENING_BY);
+
     var locsByLv = {};
     L.locs.forEach(function (l) { (locsByLv[l.lv] || (locsByLv[l.lv] = [])).push(l); });
     var cur = loadCurrent_();
     var day = addDays_(goLive, -1);
     var now = new Date();
-    var rows = [], over = [], missing = [], nLv = 0;
+    var W = CFG.MAT_WEIGHT, Wp = W * 100;
+    var rows = [], matRows = [], over = [], missing = [], nLv = 0, detail = {};
     var lay = dailyLayout_();
     var openingWrites = [];
 
@@ -185,21 +231,31 @@ function setOpening_(goLive) {
       var locs = locsByLv[it.lv] || [];
       var total = locs.reduce(function (s, l) { return s + l.q; }, 0);
       var used = usedBefore[it.lv];
-      var pct = total > 0 ? round_(Math.min(100, Math.max(0, used / total * 100)), 2) : 0;
+      var T = total > 0 ? Math.min(100, Math.max(0, used / total * 100)) : 0;
+      var full = openingMatFull_(it);
+      var m0 = full ? 1 : Math.min(1, T / Wp);
+      var pct = round_(Math.max(0, (T - Wp) / (100 - Wp) * 100), 4);
       if (used > total * 1.0001) over.push(it.code + '（' + it.lv + '）已用 ' + used + '／圖面 ' + round_(total, 2));
+      var note = '期初總% = 上線前正式版使用數量 ' + used + ' ÷ 圖面合計 ' + round_(total, 4) + ' = ' + round_(T, 2) +
+        '%；進料比例 ' + round_(m0 * 100, 2) + '%' + (full ? '（使用者確認進料已完成）' : '') + '、施作 ' + pct + '%';
+      if (total > 0 && m0 > 0) {
+        matRows.push([it.lv, it.name, it.unit, day, round_(m0 * total, 4), CFG.OPENING_BY, now, Utilities.getUuid(), safeText_(note, 300)]);
+      }
       locs.forEach(function (l) {
         var tag = l.kind === '單樘' ? it.tag : null;
         var c = cur.byId[l.id] || { p: '', f: '', s: '', d: '', by: '' };
-        rows.push([it.lv, it.name, it.unit, l.fl, l.rid, l.id, tag ? tag[0][0] + ' ' + pct + '%／' + tag[1][0] + ' ' + pct + '%' : '期初推估',
+        rows.push([it.lv, it.name, it.unit, l.fl, l.rid, l.id, tag ? tag[0][0] + ' ' + pct + '%／' + tag[1][0] + ' ' + pct + '%' : '期初推估（施作）',
           toFrac_(pct), toFrac_(c.p), round_(l.q * pct / 100, 4), day, CFG.OPENING_LEVEL, CFG.OPENING_BY, now, Utilities.getUuid(),
-          '期初% = 上線前正式版使用數量 ' + used + ' ÷ 圖面合計 ' + round_(total, 4), '']);
+          safeText_(note, 300), '']);
         // 目前進度：還沒有上線後的登記才改成期初
         if (!c.d || c.d < goLive) {
           cur.byId[l.id] = { row: c.row, p: pct, f: tag ? pct : '', s: tag ? pct : '', d: day, by: CFG.OPENING_BY, ts: now };
         }
       });
+      var baseQty = round_(total * (W * m0 + (1 - W) * pct / 100), 3);
+      detail[it.lv] = { code: it.code, used: used, total: round_(total, 3), T: round_(T, 2), mat: round_(m0 * 100, 2), work: pct, base: baseQty };
       var row = lay.rowOf[it.lv];
-      if (row) openingWrites.push([row, used]);
+      if (row) openingWrites.push([row, baseQty]);
       nLv++;
     });
 
@@ -207,10 +263,12 @@ function setOpening_(goLive) {
       logSh_append_(rows);
       writeCurrent_(cur, L);
     }
+    if (matRows.length) matSh.getRange(matSh.getLastRow() + 1, 1, matRows.length, MAT_WIDTH).setValues(matRows);
     openingWrites.forEach(function (w) { lay.sh.getRange(w[0], CFG.COL_OPENING).setValue(w[1]); });
     SpreadsheetApp.flush();
     recalcLevels_(L.items.map(function (it) { return it.lv; }));
-    return { levels: nLv, locs: rows.length, over: over, missing: missing };
+    console.log(JSON.stringify(detail));
+    return { levels: nLv, locs: rows.length, mats: matRows.length, over: over, missing: missing, detail: detail };
   } finally { lock.releaseLock(); }
 }
 

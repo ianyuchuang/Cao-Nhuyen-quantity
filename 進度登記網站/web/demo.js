@@ -104,10 +104,13 @@
   var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var me = { email: 'demo@example.com', name: '示範工程師', role: 'editor' };
 
+  // 完成量＝圖面 × 50% × 進料比例 ＋ Σ 數量 × 50% × 施作%
   function webCum(ii) {
-    var s = 0;
-    st.locs.forEach(function (l) { if (l[1] === ii && st.cur[l[0]]) s += l[6] * st.cur[l[0]][0] / 100; });
-    return r2(s);
+    var s = 0, total = 0, lv = st.items[ii].lv;
+    st.locs.forEach(function (l) { if (l[1] !== ii) return; total += l[6]; if (st.cur[l[0]]) s += l[6] * st.cur[l[0]][0] / 100; });
+    var mat = st.mats.filter(function (m) { return m.lv === lv; }).reduce(function (a, m) { return a + m.qty; }, 0);
+    var mr = total > 0 ? Math.min(1, mat / total) : 0;
+    return r2(0.5 * total * mr + 0.5 * s);
   }
 
   var api = {

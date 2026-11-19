@@ -129,56 +129,63 @@ ok(b0.ok && b0.user.role === 'viewer' && b0.user.name === '王工程師', '檢�
 ok(JSON.stringify(b0).indexOf('999') < 0 && JSON.stringify(b0).indexOf('99900') < 0, 'bootstrap 不含單價／複價');
 ok(b0.items[1][5][0][0] === '門框' && b0.items[2][5][0][0] === '窗框', '門窗細項：D1 門、DW9 鋁玻璃門 → 窗');
 
-// ---------- 2. 期初 ----------
+// ---------- 2. 期初（進料 50%＋施作 50%） ----------
+// A.1 天花板：圖面 100、已用 30 → 期初總 30% → 進料比例 60%、施作 0%、J＝100×50%×60%＝30
+// A.2 門：圖面 2、已用 1 → 50% → 進料 100%、施作 0%、J＝1
+// A.3 鋁玻璃門：圖面 1、已用 5（超過）→ 100% → 進料 100%、施作 100%、J＝1
 const op = ctx.setOpening_(GOLIVE);
-ok(op.levels === 3 && op.locs === 5, '期初：3 層級 5 位置');
+ok(op.levels === 3 && op.locs === 5 && op.mats === 3, '期初：3 層級 5 位置、進料期初 3 筆');
 ok(op.over.length === 1 && /DW9/.test(op.over[0]), '期初超過圖面列出 DW9（已用 5 > 圖面 1）');
-ok(daily.get(drow('A.1'), 10) === 30 && daily.get(drow('A.3'), 10) === 5, 'J 欄期初 = 上線前使用數量（不設上限）');
-ok(cur.get(2, 7) === 0.3 && cur.get(4, 8) === 0.5 && cur.get(4, 9) === 0.5, '目前進度存小數（百分比格式）：C1 0.3、D1 框扇各 0.5');
+ok(op.detail['A.1'].mat === 60 && op.detail['A.1'].work === 0 && op.detail['A.3'].mat === 100 && op.detail['A.3'].work === 100, '期初拆分：A.1 進料 60%／施作 0%；A.3 進料 100%／施作 100%');
+const matA1 = mat.d.find(r => r[0] === 'A.1' && r[5] === '系統（期初推估）');
+ok(matA1 && matA1[4] === 60 && fmtDate(matA1[3], 'Asia/Taipei', 'yyyy-MM-dd') === '2026-11-09', '進料期初寫進「進料」表：A.1 到貨 60，日期＝上線日前一天');
+ok(daily.get(drow('A.1'), 10) === 30 && daily.get(drow('A.2'), 10) === 1 && daily.get(drow('A.3'), 10) === 1, 'J 欄期初＝網站推估的上線前累計（A.3 以圖面計 1，不是已用 5）');
+ok(cur.get(2, 7) === 0 && cur.get(4, 8) === 0 && cur.get(6, 7) === 1 && cur.get(6, 8) === 1, '目前進度只存施作%：C1 0、D1 框 0；DW9 施作 100%');
 ok(dval('A.1', '2026-11-10') === '' && dval('A.1', '2026-11-20') === '', '期初後沒有新登記 → 日期欄空白');
 
-// ---------- 3. 登記與重算 ----------
+// ---------- 3. 登記與重算（施作只佔 50%） ----------
 let r = call({ action: 'submit', token: T.tokV, date: '2026-11-12', level: '房間', items: [
-  { uuid: 'TEST-U1-0000', id: 'A.1|1F|101', p: 80, old: { p: 30 } },
-  { uuid: 'TEST-U2-0000', id: 'A.2|1F|1F-D101', f: 100, s: 0, old: { f: 50, s: 50 } }] });
+  { uuid: 'TEST-U1-0000', id: 'A.1|1F|101', p: 80, old: { p: 0 } },
+  { uuid: 'TEST-U2-0000', id: 'A.2|1F|1F-D101', f: 100, s: 0, old: { f: 0, s: 0 } }] });
 ok(r.ok && r.saved.length === 2, 'submit 兩筆成功');
-ok(Math.abs(dval('A.1', '2026-11-12') - 30) < 1e-9, '11/12 天花板當日完成量 = 60×(80−30)% = 30');
-ok(Math.abs(dval('A.2', '2026-11-12') - 0.1) < 1e-9, '11/12 門當日 = 1×(60−50)% = 0.1');
-ok(cur.get(2, 7) === 0.8 && cur.get(4, 7) === 0.6 && cur.get(4, 8) === 1, '目前進度更新（門合計 60%，存 0.6）');
-ok(log.d[log.getLastRow() - 1][7] === 0.6 && log.d[log.getLastRow() - 2][7] === 0.8 && log.d[log.getLastRow() - 2][8] === 0.3, '進度紀錄完成%／舊值存小數');
+ok(Math.abs(dval('A.1', '2026-11-12') - 24) < 1e-9, '11/12 天花板當日 = 60 × 50% × 80% = 24');
+ok(Math.abs(dval('A.2', '2026-11-12') - 0.3) < 1e-9, '11/12 門當日 = 1 × 50% × 60%（框）= 0.3');
+ok(cur.get(2, 7) === 0.8 && cur.get(4, 7) === 0.6 && cur.get(4, 8) === 1, '目前進度更新（門施作 60%，存 0.6）');
+ok(log.d[log.getLastRow() - 1][7] === 0.6 && log.d[log.getLastRow() - 2][7] === 0.8 && log.d[log.getLastRow() - 2][8] === 0, '進度紀錄完成%／舊值存小數');
 ok(cur.get(2, 10) === 0, '沒有寫到 J 欄完成量（公式欄）');
 
-r = call({ action: 'submit', token: T.tokV, date: '2026-11-12', items: [{ uuid: 'TEST-U1-0000', id: 'A.1|1F|101', p: 80, old: { p: 30 } }] });
+r = call({ action: 'submit', token: T.tokV, date: '2026-11-12', items: [{ uuid: 'TEST-U1-0000', id: 'A.1|1F|101', p: 80, old: { p: 0 } }] });
 ok(r.dup.length === 1 && log.getLastRow() === 1 + 5 + 2, '同 UUID 重送 → dup，不重複寫入');
 
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-15', items: [{ uuid: 'TEST-U3-0000', id: 'A.1|1F|101', p: 90, old: { p: 70 } }] });
 ok(r.conflicts.length === 1 && r.conflicts[0].server[0] === 80, '舊值不同 → 衝突，回傳伺服器值');
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-15', force: true, items: [{ uuid: 'TEST-U3-0000', id: 'A.1|1F|101', p: 90, old: { p: 70 } }] });
-ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-15') - 6) < 1e-9, 'force 重送成功，11/15 = 60×10% = 6');
+ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-15') - 3) < 1e-9, 'force 重送成功，11/15 = 60 × 50% × 10% = 3');
 
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-16', items: [{ uuid: 'TEST-U4-0000', id: 'A.1|1F|101', p: 50, old: { p: 90 } }] });
 ok(r.rejected.length === 1, '調低沒填原因 → rejected');
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-16', reason: '拆除重做', items: [{ uuid: 'TEST-U4-0000', id: 'A.1|1F|101', p: 50, old: { p: 90 } }] });
-ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-16') + 24) < 1e-9, '有原因可調低，11/16 = −24（負數照實）');
+ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-16') + 12) < 1e-9, '有原因可調低，11/16 = −12（負數照實）');
 
 // 補登較早日期：不改目前進度，但改每日數量
-r = call({ action: 'submit', token: T.tokV, date: '2026-11-11', items: [{ uuid: 'TEST-U5-0000', id: 'A.1|1F|102', p: 100, old: { p: 30 } }] });
-ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-11') - 28) < 1e-9, '補登 11/11：40×(100−30)% = 28');
+r = call({ action: 'submit', token: T.tokV, date: '2026-11-11', items: [{ uuid: 'TEST-U5-0000', id: 'A.1|1F|102', p: 100, old: { p: 0 } }] });
+ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-11') - 20) < 1e-9, '補登 11/11：40 × 50% × 100% = 20');
 ok(cur.get(2, 7) === 0.5, '補登較早日期不影響其他位置的目前進度');
 ok(r.cur['A.1|1F|102'][0] === 100, 'API 回傳的完成% 仍是 0～100');
 
 ok(call({ action: 'submit', token: T.tokV, date: '2026-11-21', items: [{ uuid: 'TEST-U6-0000', id: 'A.1|1F|101', p: 60 }] }).error === 'bad_request', '未來日期 → 拒絕');
 ok(call({ action: 'submit', token: T.tokV, date: '2026-11-09', items: [{ uuid: 'TEST-U7-0000', id: 'A.1|1F|101', p: 60 }] }).error === 'bad_request', '早於上線日 → 拒絕');
 
-// 網站累計 = J + Σ日期欄 應等於 Σ q×p
+// 網站累計 = J + Σ日期欄 ＝ 圖面 × 50% × 進料比例 ＋ Σ 數量 × 50% × 施作%
 const sumRow = lv => { let s = Number(daily.get(drow(lv), 10)) || 0; for (let c = 11; c <= W; c++) s += Number(daily.get(drow(lv), c)) || 0; return s; };
-ok(Math.abs(sumRow('A.1') - (60 * 0.5 + 40 * 1)) < 1e-9, '天花板 J＋逐日合計 = 圖面完成量 70（期初未超過圖面時）');
+ok(Math.abs(sumRow('A.1') - (100 * 0.5 * 0.6 + 0.5 * (60 * 0.5 + 40 * 1))) < 1e-9, '天花板 J＋逐日合計 = 30（進料）＋ 35（施作）= 65');
 
 // ---------- 4. 進料、history ----------
 r = call({ action: 'material', token: T.tokV, uuid: 'TEST-M1-0000', lv: 'A.1', date: '2026-11-20', qty: 120 });
-ok(r.ok && r.sum === 120, '進料寫入');
+ok(r.ok && r.sum === 180, '進料寫入（期初 60＋120）');
+ok(Math.abs(dval('A.1', '2026-11-20') - 20) < 1e-9, '進料到貨當天計入：進料比例 60%→100%，11/20 = 100 × 50% × 40% = 20');
 r = call({ action: 'material', token: T.tokV, uuid: 'TEST-M1-0000', lv: 'A.1', date: '2026-11-20', qty: 120 });
-ok(r.dup && r.sum === 120, '進料 UUID 去重');
+ok(r.dup && r.sum === 180, '進料 UUID 去重');
 call({ action: 'submit', token: T.tokE, date: '2026-11-20', items: [{ uuid: 'TEST-E1-0000', id: 'A.1|1F|102', p: 100, old: { p: 100 } }] });
 const hv = call({ action: 'history', token: T.tokV, ids: ['A.1|1F|102'], lv: 'A.1' });
 ok(hv.records.some(x => x.p === 100) && hv.records.every(x => x.by === 'eng@x.com' || x.by === '系統（期初推估）') && !hv.all, '檢視者 history 只看到自己與期初');
@@ -240,4 +247,14 @@ for (let i = 2; i <= cur.getLastRow(); i++) for (const c of [7, 8, 9, 11, 12, 13
 const nre = ctx.rebuildCurrent_();
 const after8 = snap8();
 ok(nre === 5 && JSON.stringify(after8) === JSON.stringify(before8), '清空後從進度紀錄重建，目前進度（完成%、框、扇、日期）與原本相同');
+
+// ---------- 9. 重設期初：舊期初列刪除、進料例外 ----------
+ctx.CFG.OPENING_MAT_FULL_LVS.push('A.1');
+const op2 = ctx.setOpening_(GOLIVE);
+const openMats = mat.d.filter(r => r[5] === '系統（期初推估）');
+const openLogs = log.d.filter(r => r[12] === '系統（期初推估）');
+ok(openMats.length === 3 && openLogs.length === 5, '重設期初先刪舊期初列：進料 3 筆、進度紀錄 5 筆（不重複）');
+ok(op2.detail['A.1'].mat === 100 && op2.detail['A.1'].work === 0 && openMats.find(r => r[0] === 'A.1')[4] === 100, '例外層級：期初總 30% 但進料比例＝100%（施作 0%）');
+ok(daily.get(drow('A.1'), 10) === 50, '例外層級 J＝100 × 50% × 100% = 50（高於正式版已用 30，差異出現在 I 欄）');
+ok(mat.d.some(r => r[0] === 'A.1' && r[4] === 120), '重設期初不影響工程師登記的進料');
 console.log('\n全部通過');
