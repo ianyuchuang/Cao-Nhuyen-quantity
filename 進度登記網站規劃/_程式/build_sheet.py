@@ -30,7 +30,16 @@ for c in data:
         name, unit = text[no]
         items.append((order[no], no, name, unit, c['cat'], it['code']))
         prop = 0
-        for r in it['rows']:
+        rows = [list(r) for r in it['rows']]
+        # 樓梯踢面併入同層的樓梯房間（2026-11-19 使用者要求）：「A梯踢面」→ 同層名稱以「A梯」開頭的房間（多間取房號最小者），B梯同理
+        for r in [x for x in rows if re.match(r'^[AB]梯踢面$', x[1])]:
+            room = sorted([x for x in rows if x[0] == r[0] and x is not r and x[2].startswith(r[1][0] + '梯')
+                           and re.match(r'^[A-Z]?\d{2,4}[a-z]?$', x[1], re.I)], key=lambda x: x[1])
+            if not room:
+                raise SystemExit(f'{it["code"]} {r[0]} {r[1]} 找不到同層的{r[1][0]}梯房間')
+            room[0][3] += r[3]
+            rows.remove(r)
+        for r in rows:
             fl, rid, nm, q = r[0], r[1], r[2], r[3]
             if '比例分配' in rid:
                 prop += q

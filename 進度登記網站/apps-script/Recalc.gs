@@ -44,7 +44,7 @@ function loadLogsByLevel_(levels) {
     var ts = r[LOG_COL.TS - 1];
     var t = ts instanceof Date ? ts.getTime() : i; // 沒有時間戳時以列序代替
     var g = out[lv] || (out[lv] = {});
-    (g[id] || (g[id] = [])).push({ d: d, t: t, i: i, p: num_(r[LOG_COL.PCT - 1]) });
+    (g[id] || (g[id] = [])).push({ d: d, t: t, i: i, p: fromFrac_(r[LOG_COL.PCT - 1]) });
   });
   Object.keys(out).forEach(function (lv) {
     Object.keys(out[lv]).forEach(function (id) {
@@ -191,7 +191,7 @@ function setOpening_(goLive) {
         var tag = l.kind === '單樘' ? it.tag : null;
         var c = cur.byId[l.id] || { p: '', f: '', s: '', d: '', by: '' };
         rows.push([it.lv, it.name, it.unit, l.fl, l.rid, l.id, tag ? tag[0][0] + ' ' + pct + '%／' + tag[1][0] + ' ' + pct + '%' : '期初推估',
-          pct, c.p, round_(l.q * pct / 100, 4), day, CFG.OPENING_LEVEL, CFG.OPENING_BY, now, Utilities.getUuid(),
+          toFrac_(pct), toFrac_(c.p), round_(l.q * pct / 100, 4), day, CFG.OPENING_LEVEL, CFG.OPENING_BY, now, Utilities.getUuid(),
           '期初% = 上線前正式版使用數量 ' + used + ' ÷ 圖面合計 ' + round_(total, 4), '']);
         // 目前進度：還沒有上線後的登記才改成期初
         if (!c.d || c.d < goLive) {

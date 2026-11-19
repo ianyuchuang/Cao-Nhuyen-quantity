@@ -29,7 +29,7 @@
 | 項目 | 值 |
 |---|---|
 | Apps Script 專案 | 「工項進度登記 API」（綁定試算表「工項進度登記」），已授權 |
-| 網頁應用程式網址 | `https://script.google.com/macros/s/AKfycbza7iiFZwQPQ-QNu0yfyrTaBKZ7gELe5C3D1SIZqlsB5YN_3pB7XxjwXeB9avf10Xwfqg/exec`（第 1 版，執行身分：擁有者，存取：所有人） |
+| 網頁應用程式網址 | `https://script.google.com/macros/s/AKfycbza7iiFZwQPQ-QNu0yfyrTaBKZ7gELe5C3D1SIZqlsB5YN_3pB7XxjwXeB9avf10Xwfqg/exec`（第 2 版，執行身分：擁有者，存取：所有人；第 2 版起完成% 在試算表存 0～1 小數，配合百分比格式） |
 | Google Cloud 專案 | `progress-register`（Progress Register），OAuth 同意畫面已發布（外部、正式版） |
 | OAuth 用戶端 ID | `902248037106-cjn6lprnhovn2lncu3j3e8orgu7d6k6p.apps.googleusercontent.com`，來源：`https://ianyuchuang.github.io`、`http://localhost:8765` |
 | 「設定」表 | 網站網址、OAuth 用戶端 ID、權限來源＝人員表 已填；**上線日未填** |

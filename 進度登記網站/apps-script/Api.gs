@@ -148,7 +148,7 @@ function submit_(user, req) {
       var reason = safeText_(it.reason) || batchReason;
       if (p < curP && !reason) { rejected.push({ uuid: uuid, id: loc.id, why: '完成% 比上次低，需填原因' }); return; }
 
-      rows.push([loc.lv, loc.name, loc.unit, loc.fl, loc.rid, loc.id, detail, p, c.p === '' ? '' : curP,
+      rows.push([loc.lv, loc.name, loc.unit, loc.fl, loc.rid, loc.id, detail, toFrac_(p), c.p === '' ? '' : toFrac_(curP),
         round_(loc.q * p / 100, 4), date, level, user.email, now, uuid, reason,
         (req.force ? '［衝突後以登記人為準］' : '') + safeText_(it.note)]);
       seen[uuid] = 1;
@@ -225,7 +225,7 @@ function history_(user, req) {
       if (!ids[r[LOG_COL.ID - 1]]) continue;
       var by = String(r[LOG_COL.BY - 1]);
       if (user.role !== 'editor' && by.toLowerCase() !== user.email && by !== CFG.OPENING_BY) continue;
-      recs.push({ id: r[LOG_COL.ID - 1], detail: r[LOG_COL.DETAIL - 1], p: r[LOG_COL.PCT - 1], old: r[LOG_COL.OLD - 1],
+      recs.push({ id: r[LOG_COL.ID - 1], detail: r[LOG_COL.DETAIL - 1], p: fromFrac_(r[LOG_COL.PCT - 1]), old: fromFrac_(r[LOG_COL.OLD - 1]),
         date: dateStr_(r[LOG_COL.DATE - 1]), level: r[LOG_COL.LEVEL - 1], by: by,
         ts: r[LOG_COL.TS - 1] instanceof Date ? Utilities.formatDate(r[LOG_COL.TS - 1], CFG.TZ, 'yyyy-MM-dd HH:mm') : String(r[LOG_COL.TS - 1]),
         reason: r[LOG_COL.REASON - 1], note: r[LOG_COL.NOTE - 1] });

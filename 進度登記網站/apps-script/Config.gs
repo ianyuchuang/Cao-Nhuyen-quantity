@@ -81,6 +81,9 @@ function safeText_(v, max) {
 }
 function num_(v) { var n = Number(v); return isFinite(n) ? n : 0; }
 function round_(x, d) { var k = Math.pow(10, d); return Math.round((x + (x >= 0 ? 1e-12 : -1e-12)) * k) / k; }
+/** 試算表的完成% 欄是百分比格式：存 0～1 的小數；程式內部與 API 一律用 0～100 */
+function toFrac_(p) { return p === '' || p == null ? '' : round_(Number(p) / 100, 6); }
+function fromFrac_(v) { return v === '' || v == null ? '' : round_(num_(v) * 100, 4); }
 function clampPct_(v) { var n = Number(v); if (!isFinite(n)) n = 0; return round_(Math.max(0, Math.min(100, n)), 2); }
 
 /** 日期值（Date 或文字）→ 'yyyy-MM-dd'；空白回 '' */

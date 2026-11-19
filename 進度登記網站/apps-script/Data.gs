@@ -59,9 +59,9 @@ function loadCurrent_() {
   v.forEach(function (r, i) {
     var id = trim_(r[CUR_COL.ID - 1]);
     if (!id) return;
-    out.byId[id] = { row: i, p: r[CUR_COL.PCT - 1] === '' ? '' : num_(r[CUR_COL.PCT - 1]),
-      f: r[CUR_COL.FRAME - 1] === '' ? '' : num_(r[CUR_COL.FRAME - 1]),
-      s: r[CUR_COL.LEAF - 1] === '' ? '' : num_(r[CUR_COL.LEAF - 1]),
+    out.byId[id] = { row: i, p: fromFrac_(r[CUR_COL.PCT - 1]),
+      f: fromFrac_(r[CUR_COL.FRAME - 1]),
+      s: fromFrac_(r[CUR_COL.LEAF - 1]),
       d: dateStr_(r[CUR_COL.DATE - 1]), by: trim_(r[CUR_COL.BY - 1]), ts: r[CUR_COL.TS - 1] };
   });
   return out;
@@ -80,7 +80,7 @@ function writeCurrent_(cur, L) {
   });
   Object.keys(cur.byId).forEach(function (id) {
     var c = cur.byId[id];
-    var g = [c.p, c.f, c.s], k = [c.d, c.by, c.ts || ''];
+    var g = [toFrac_(c.p), toFrac_(c.f), toFrac_(c.s)], k = [c.d, c.by, c.ts || ''];
     if (c.row == null) {
       var l = L.byId[id];
       if (!l) return;

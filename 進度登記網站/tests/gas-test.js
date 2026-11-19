@@ -133,7 +133,7 @@ const op = ctx.setOpening_(GOLIVE);
 ok(op.levels === 3 && op.locs === 5, '期初：3 層級 5 位置');
 ok(op.over.length === 1 && /DW9/.test(op.over[0]), '期初超過圖面列出 DW9（已用 5 > 圖面 1）');
 ok(daily.get(drow('A.1'), 10) === 30 && daily.get(drow('A.3'), 10) === 5, 'J 欄期初 = 上線前使用數量（不設上限）');
-ok(cur.get(2, 7) === 30 && cur.get(4, 8) === 50 && cur.get(4, 9) === 50, '目前進度：C1 30%、D1 框扇各 50%');
+ok(cur.get(2, 7) === 0.3 && cur.get(4, 8) === 0.5 && cur.get(4, 9) === 0.5, '目前進度存小數（百分比格式）：C1 0.3、D1 框扇各 0.5');
 ok(dval('A.1', '2026-11-10') === '' && dval('A.1', '2026-11-20') === '', '期初後沒有新登記 → 日期欄空白');
 
 // ---------- 3. 登記與重算 ----------
@@ -143,7 +143,8 @@ let r = call({ action: 'submit', token: T.tokV, date: '2026-11-12', level: '房�
 ok(r.ok && r.saved.length === 2, 'submit 兩筆成功');
 ok(Math.abs(dval('A.1', '2026-11-12') - 30) < 1e-9, '11/12 天花板當日完成量 = 60×(80−30)% = 30');
 ok(Math.abs(dval('A.2', '2026-11-12') - 0.1) < 1e-9, '11/12 門當日 = 1×(60−50)% = 0.1');
-ok(cur.get(2, 7) === 80 && cur.get(4, 7) === 60 && cur.get(4, 8) === 100, '目前進度更新（門合計 60%）');
+ok(cur.get(2, 7) === 0.8 && cur.get(4, 7) === 0.6 && cur.get(4, 8) === 1, '目前進度更新（門合計 60%，存 0.6）');
+ok(log.d[log.getLastRow() - 1][7] === 0.6 && log.d[log.getLastRow() - 2][7] === 0.8 && log.d[log.getLastRow() - 2][8] === 0.3, '進度紀錄完成%／舊值存小數');
 ok(cur.get(2, 10) === 0, '沒有寫到 J 欄完成量（公式欄）');
 
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-12', items: [{ uuid: 'TEST-U1-0000', id: 'A.1|1F|101', p: 80, old: { p: 30 } }] });
@@ -162,7 +163,8 @@ ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-16') + 24) < 1e-9, '有
 // 補登較早日期：不改目前進度，但改每日數量
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-11', items: [{ uuid: 'TEST-U5-0000', id: 'A.1|1F|102', p: 100, old: { p: 30 } }] });
 ok(r.saved.length === 1 && Math.abs(dval('A.1', '2026-11-11') - 28) < 1e-9, '補登 11/11：40×(100−30)% = 28');
-ok(cur.get(2, 7) === 50, '補登較早日期不影響其他位置的目前進度');
+ok(cur.get(2, 7) === 0.5, '補登較早日期不影響其他位置的目前進度');
+ok(r.cur['A.1|1F|102'][0] === 100, 'API 回傳的完成% 仍是 0～100');
 
 ok(call({ action: 'submit', token: T.tokV, date: '2026-11-21', items: [{ uuid: 'TEST-U6-0000', id: 'A.1|1F|101', p: 60 }] }).error === 'bad_request', '未來日期 → 拒絕');
 ok(call({ action: 'submit', token: T.tokV, date: '2026-11-09', items: [{ uuid: 'TEST-U7-0000', id: 'A.1|1F|101', p: 60 }] }).error === 'bad_request', '早於上線日 → 拒絕');
@@ -178,7 +180,7 @@ r = call({ action: 'material', token: T.tokV, uuid: 'TEST-M1-0000', lv: 'A.1', d
 ok(r.dup && r.sum === 120, '進料 UUID 去重');
 call({ action: 'submit', token: T.tokE, date: '2026-11-20', items: [{ uuid: 'TEST-E1-0000', id: 'A.1|1F|102', p: 100, old: { p: 100 } }] });
 const hv = call({ action: 'history', token: T.tokV, ids: ['A.1|1F|102'], lv: 'A.1' });
-ok(hv.records.every(x => x.by === 'eng@x.com' || x.by === '系統（期初推估）') && !hv.all, '檢視者 history 只看到自己與期初');
+ok(hv.records.some(x => x.p === 100) && hv.records.every(x => x.by === 'eng@x.com' || x.by === '系統（期初推估）') && !hv.all, '檢視者 history 只看到自己與期初');
 const he = call({ action: 'history', token: T.tokE, ids: ['A.1|1F|102'] });
 ok(he.all && he.records.some(x => x.by === 'boss@x.com'), '編輯者看得到所有人');
 
