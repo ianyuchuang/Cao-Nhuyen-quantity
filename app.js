@@ -250,11 +250,15 @@
   const tagP = (l, f, s) => { const w = ITEMS[l.ii].tag; return r2(f * w[0][1] + s * w[1][1]); };
   const val = li => (CUR[li] ? Number(CUR[li].p) || 0 : 0);
   const tagVals = li => { const c = CUR[li]; if (!c) return [0, 0]; const p = Number(c.p) || 0; return [c.f === '' || c.f == null ? p : Number(c.f), c.s === '' || c.s == null ? p : Number(c.s)]; };
+  // 完成% ＝ 進料 50% × 進料比例（代號層整批）＋ 施作 50% × 施作完成%（各位置填的值）
+  const MAT_W = 0.5;
+  const matRatio = ii => { const o = ITEMS[ii]; return o.total > 0 ? Math.max(0, Math.min(1, o.mat / o.total)) : 0; };
+  const eff = li => MAT_W * 100 * matRatio(LOCS[li].ii) + (1 - MAT_W) * val(li);
   function sum(locs) {
     const units = new Set(locs.map(l => ITEMS[LOCS[l].ii].unit));
     let q = 0, d = 0;
-    locs.forEach(l => { q += LOCS[l].q; d += LOCS[l].q * val(l) / 100; });
-    const done = locs.filter(l => val(l) >= 99.995).length;
+    locs.forEach(l => { q += LOCS[l].q; d += LOCS[l].q * eff(l) / 100; });
+    const done = locs.filter(l => eff(l) >= 99.995).length;
     return { mixed: units.size > 1, unit: [...units].join('、'), q, d, p: units.size > 1 ? null : (q ? d / q * 100 : 0), done, n: locs.length };
   }
   const sumTxt = s => s.mixed ? `完成 ${s.done}/${s.n} 筆` : fp(s.p);
@@ -273,7 +277,7 @@
   const roomTitle = r => `<b class="mono">${esc(r.rid)}</b> ${esc(r.nm)}${r.kind === '代號組' ? '' : kindTag(r.kind)}`;
   const roomCodes = r => {
     if (r.kind === '代號組') { const g = sum(r.locs); return `<span class="codes"><span class="${g.done === g.n ? 'ok' : ''}">${g.n} 樘・完成 ${g.done}</span></span>`; }
-    return `<span class="codes">${r.locs.map(l => `<span class="${val(l) >= 99.995 ? 'ok' : ''}">${esc(ITEMS[LOCS[l].ii].code)}</span>`).join('')}</span>`;
+    return `<span class="codes">${r.locs.map(l => `<span class="${eff(l) >= 99.995 ? 'ok' : ''}">${esc(ITEMS[LOCS[l].ii].code)}</span>`).join('')}</span>`;
   };
 
   // ================= 變更、確認、送出 =================
@@ -386,10 +390,11 @@
     const ids = only != null ? [only] : CATS[ci].items;
     return ids.map(i => {
       const o = ITEMS[i], cl = codeLoc(i);
-      return `<div class="mat"><div class="top"><span><span class="code">${esc(o.code)}</span><span class="muted" style="font-size:.78rem">${esc(o.short.slice(0, 24))}</span></span><span class="qty">圖面 ${fmt(o.total, o.unit)} ${esc(o.unit)}</span></div>
-        <div class="row"><span>進料累計 <b class="mono">${fmt(o.mat, o.unit)}</b>（${fp(o.total ? o.mat / o.total * 100 : 0)}）${o.matLast ? '・最後 ' + esc(o.matLast) : ''}</span><span style="flex:1"></span>
+      const g = sum(o.locs);
+      return `<div class="mat"><div class="top"><span><span class="code">${esc(o.code)}</span><span class="muted" style="font-size:.78rem">${esc(o.short.slice(0, 24))}</span></span><span class="qty">圖面 ${fmt(o.total, o.unit)} ${esc(o.unit)}・完成 <b class="pct">${fp(g.p)}</b></span></div>
+        <div class="row"><span><b>進料（佔 50%）</b> 累計 <b class="mono">${fmt(o.mat, o.unit)}</b>・進料比例 <b class="pct">${fp(matRatio(i) * 100)}</b>${o.matLast ? '・最後 ' + esc(o.matLast) : ''}</span><span style="flex:1"></span>
         <input class="pin" type="number" inputmode="decimal" step="any" placeholder="今日到貨" id="mat-${i}" aria-label="${esc(o.code)} 進料數量"><button type="button" class="btn" data-mat="${i}">登記進料</button><button type="button" class="btn sm" data-mhist="${i}">紀錄</button></div>
-        ${cl != null ? `<div style="display:grid;gap:4px"><span style="font-size:.78rem">不分樓層（比例分配）${fmt(LOCS[cl].q, o.unit)} ${esc(o.unit)}${pendTag(cl)}</span>${chips(cl, val(cl), null, 'cl')}</div>` : ''}</div>`;
+        ${cl != null ? `<div style="display:grid;gap:4px"><span style="font-size:.78rem">不分樓層（比例分配）${fmt(LOCS[cl].q, o.unit)} ${esc(o.unit)}・<b>施作完成 %</b>（佔 50%）${pendTag(cl)}</span>${chips(cl, val(cl), null, 'cl')}</div>` : ''}</div>`;
     }).join('');
   }
 
@@ -417,7 +422,7 @@
       body = `<div class="grid">${CATS.map(C => { const g = sum(C.rooms.flatMap(r => ROOMS[r].locs)); return `<button type="button" class="tile" data-a="cat" data-ci="${C.ci}"><b>${esc(C.cat)}</b><span class="muted" style="font-size:.74rem">${C.items.length} 個代號・${C.floors.length} 層</span>${bar(g.p)}<span class="pct" style="font-size:.8rem">${sumTxt(g)}</span></button>`; }).join('')}</div>`;
     } else if (s.view === 'fl') {
       const C = CATS[s.ci]; title = C.cat; back = 'cat'; crumb = [['cat', '工項']];
-      body = `<button type="button" class="rowbtn" data-a="fl" data-fl="${CODE_FL}"><div class="top"><span><b>代號層</b>　<span class="muted" style="font-size:.78rem">進料${C.hasCodeLevel ? '・不分樓層' : ''}</span></span><span class="muted" style="font-size:.78rem">${C.items.length} 個代號 ›</span></div></button>` +
+      body = `<p class="note">完成% ＝ 進料 50%（代號層整批登記到貨數量）＋ 施作 50%（各房間填的「施作完成 %」）</p><button type="button" class="rowbtn" data-a="fl" data-fl="${CODE_FL}"><div class="top"><span><b>代號層</b>　<span class="muted" style="font-size:.78rem">進料${C.hasCodeLevel ? '・不分樓層' : ''}</span></span><span class="muted" style="font-size:.78rem">${C.items.length} 個代號 ›</span></div></button>` +
         C.floors.map(f => { const R = floorRooms(s.ci, f), g = sum(R.flatMap(r => r.locs)); return `<button type="button" class="rowbtn" data-a="fl" data-fl="${esc(f)}"><div class="top"><span><b class="mono">${esc(f)}</b>　<span class="muted" style="font-size:.78rem">${R.length} ${C.hasTag ? '組' : '間'}・${g.n} 筆</span></span><span><span class="qty" style="font-size:.78rem;margin-right:8px">${qtyTotal(R.flatMap(r => r.locs))}</span><span class="pct">${sumTxt(g)}</span></span></div>${bar(g.p)}</button>`; }).join('');
     } else if (s.view === 'code') {
       const C = CATS[s.ci]; title = C.cat + '・代號層'; back = 'fl'; crumb = [['cat', '工項'], ['fl', C.cat]];
@@ -426,20 +431,20 @@
       const C = CATS[s.ci]; title = C.cat + '・' + s.fl; back = 'fl'; crumb = [['cat', '工項'], ['fl', C.cat]];
       const q = s.q.toLowerCase();
       const R = floorRooms(s.ci, s.fl).filter(r => !q || (r.rid + ' ' + r.nm + ' ' + r.locs.map(l => LOCS[l].tag ? LOCS[l].rid + LOCS[l].nm : ITEMS[LOCS[l].ii].code).join(' ')).toLowerCase().includes(q));
-      body = bulkBar(`整層設為（${floorLocs(s.ci, s.fl).length} 筆）`, 'a-floor') +
+      body = bulkBar(`整層施作設為（${floorLocs(s.ci, s.fl).length} 筆）`, 'a-floor') +
         `<div class="search"><input id="a-search" type="search" placeholder="${C.hasTag ? '搜尋代號或標籤' : '搜尋房號、空間或代號'}" value="${esc(s.q)}" data-asearch="1" aria-label="搜尋"></div>` +
         (R.length ? R.map(r => { const g = sum(r.locs); return `<button type="button" class="rowbtn" data-a="room" data-ri="${r.ri}"><div class="top"><span class="nm">${roomTitle(r)}</span><span class="pct">${sumTxt(g)}</span></div>${roomCodes(r)}</button>`; }).join('') : '<p class="empty">沒有符合的項目。</p>');
     } else {
       const r = ROOMS[s.ri], C = CATS[s.ci];
       title = r.kind === '代號組' ? r.rid + '・' + s.fl : r.rid + ' ' + r.nm; back = 'room'; crumb = [['cat', '工項'], ['fl', C.cat], ['room', s.fl]];
       sub = `<div class="crumb" style="margin-top:2px">${esc(r.fl)}・施工日期 <span class="mono">${esc(S.date)}</span>・<button type="button" data-a="hist">修改紀錄</button></div>`;
-      body = bulkBar(r.kind === '代號組' ? `整組設為（${r.locs.length} 樘）` : '整間設為', 'a-room') + r.locs.map(li => {
+      body = bulkBar(r.kind === '代號組' ? `整組施作設為（${r.locs.length} 樘）` : '整間施作設為', 'a-room') + r.locs.map(li => {
         const l = LOCS[li], o = ITEMS[l.ii], dr = s.draft[li];
         const curV = l.tag ? tagVals(li) : val(li);
         const ch = dr != null && JSON.stringify(dr) !== JSON.stringify(curV);
-        const last = CUR[li] && CUR[li].d ? `<span class="sub">最後 ${esc(CUR[li].d)} ${esc(CUR[li].by)}</span>` : '';
+        const last = `<span class="sub">${l.tag ? '施作（框／扇）' : '施作完成 %'}（佔 50%）・含進料 ${fp(matRatio(l.ii) * 100)} 後完成 ${fp(eff(li))}${CUR[li] && CUR[li].d ? `・最後 ${esc(CUR[li].d)} ${esc(CUR[li].by)}` : ''}</span>`;
         const head = l.tag
-          ? `<span><b class="mono">${esc(l.rid)}</b> <span class="muted" style="font-size:.75rem">${esc(l.nm)}</span>${pendTag(li)}</span><span class="area">${fp(dr ? tagP(l, dr[0], dr[1]) : val(li))}</span>`
+          ? `<span><b class="mono">${esc(l.rid)}</b> <span class="muted" style="font-size:.75rem">${esc(l.nm)}</span>${pendTag(li)}</span><span class="area"><small>施作</small> ${fp(dr ? tagP(l, dr[0], dr[1]) : val(li))}</span>`
           : `<span><span class="code">${esc(o.code)}</span><span class="muted" style="font-size:.78rem">${esc(o.short.slice(0, 20))}</span>${pendTag(li)}</span><span class="area">${fmt(l.q, o.unit)} <small>${esc(o.unit)}</small></span>`;
         return `<div class="codeRow ${ch ? 'changed' : ''}"><div class="top">${head}</div>${l.tag ? toggles(li, dr) : chips(li, val(li), dr)}${last}</div>`;
       }).join('');
@@ -472,12 +477,13 @@
         const o = ITEMS[i];
         return `<td class="cell ${val(li) >= 99.995 ? 'done' : ''}"><input class="pin" type="number" inputmode="decimal" min="0" max="100" step="1" value="${r2(val(li))}" data-setin="${li}" id="c-in-${li}" aria-label="${esc(r.rid)} ${esc(o.code)}"><small>${fmt(LOCS[li].q, o.unit)}${CUR[li] && CUR[li].pend ? '・待送' : ''}</small></td>`;
       };
-      sheet = `<table class="mx"><thead><tr><th class="sticky">房號</th><th>空間</th>${codes.map(i => { const o = ITEMS[i]; return `<th class="cc" title="${esc(o.name)}">${esc(o.code)}<small>${esc(o.unit)}</small><button type="button" class="btn sm" data-c="col" data-ii="${i}">整欄 100</button></th>`; }).join('')}<th class="n">房間</th><th></th></tr></thead>
-        <tbody>${R.map(r => `<tr><td class="mono sticky"><b>${esc(r.rid)}</b></td><td>${esc(r.nm)}${kindTag(r.kind)}</td>${codes.map(i => cell(r, i)).join('')}<td class="n">${sumTxt(sum(r.locs))}</td><td><button type="button" class="btn sm" data-c="row" data-ri="${r.ri}">整列 100</button></td></tr>`).join('')}</tbody>
+      sheet = `<table class="mx"><thead><tr><th class="sticky">房號</th><th>空間</th>${codes.map(i => { const o = ITEMS[i]; return `<th class="cc" title="${esc(o.name)}">${esc(o.code)}<small>${esc(o.unit)}</small><button type="button" class="btn sm" data-c="col" data-ii="${i}">整欄施作 100</button></th>`; }).join('')}<th class="n" title="含進料 50%">房間完成</th><th></th></tr></thead>
+        <tbody>${R.map(r => `<tr><td class="mono sticky"><b>${esc(r.rid)}</b></td><td>${esc(r.nm)}${kindTag(r.kind)}</td>${codes.map(i => cell(r, i)).join('')}<td class="n">${sumTxt(sum(r.locs))}</td><td><button type="button" class="btn sm" data-c="row" data-ri="${r.ri}">整列施作 100</button></td></tr>`).join('')}</tbody>
         <tfoot><tr><td colspan="2" style="text-align:left">本層代號完成率</td>${codes.map(i => `<td>${fp(sum(itemFloorLocs(i, s.fl)).p)}</td>`).join('')}<td>${sumTxt(g)}</td><td></td></tr></tfoot></table>`;
     }
     return `<div class="pc"><div class="tools"><select class="sel" id="c-cat" data-csel="cat" aria-label="工項">${CATS.map(x => `<option value="${x.ci}" ${x.ci === s.ci ? 'selected' : ''}>${esc(x.cat)}</option>`).join('')}</select>${flChips}</div>
-      ${s.fl === CODE_FL ? '' : bulkBar(`${s.fl} 整層設為（${floorLocs(s.ci, s.fl).length} 筆）`, 'c-floor')}
+      ${s.fl === CODE_FL ? '' : bulkBar(`${s.fl} 整層施作設為（${floorLocs(s.ci, s.fl).length} 筆）`, 'c-floor')}
+      ${s.fl === CODE_FL ? '' : '<p class="note">格子裡填的是「施作完成 %」（佔 50%）；右側「房間完成」與下方本層完成率已含進料 50%（依代號層進料比例）。</p>'}
       <div class="sheet" data-keep="c-sheet">${sheet}</div></div>`;
   }
 
@@ -488,7 +494,7 @@
     const all = C.rooms.flatMap(r => ROOMS[r].locs);
     const g = sum(all);
     const rooms = C.rooms.map(r => ROOMS[r]).filter(r => r.fl !== CODE_FL);
-    const roomsDone = rooms.filter(r => r.locs.every(l => val(l) >= 99.995)).length;
+    const roomsDone = rooms.filter(r => r.locs.every(l => eff(l) >= 99.995)).length;
     const itemsDone = C.items.filter(i => sum(ITEMS[i].locs).p >= 99.995).length;
     const fa = C.floors.map(f => { const L = floorLocs(s.ci, f); const x = sum(L); return { f, p: x.mixed ? L.reduce((a, l) => a + val(l), 0) / L.length : x.p, mixed: x.mixed }; }).sort((a, b) => a.p - b.p)[0];
     let drawer = '';
@@ -500,7 +506,7 @@
         const R = floorRooms(s.ci, f).filter(r => r.locs.some(l => LOCS[l].ii === ii));
         const x = sum(itemFloorLocs(ii, f));
         drawer = `<div class="dh"><div style="flex:1;min-width:0"><div class="muted" style="font-size:.74rem">${esc(C.cat)}・${esc(f)}</div><b><span class="code">${esc(o.code)}</span>${esc(o.short.slice(0, 26))}</b><div class="qty" style="font-size:.76rem">${fmt(x.d, o.unit)} / ${fmt(x.q, o.unit)} ${esc(o.unit)}（${fp(x.p)}）・${R.length} ${C.hasTag ? '組' : '間'}</div></div><button type="button" class="btn" data-e="close" aria-label="關閉">✕</button></div>
-          ${bulkBar(`${o.code} ${f} 整層設為`, 'e-cell')}
+          ${bulkBar(`${o.code} ${f} 整層施作設為`, 'e-cell')}
           <div class="db" data-keep="e-db">${R.map(r => `<div style="padding:9px 14px;border-bottom:1px solid var(--line2);display:grid;gap:6px"><span>${roomTitle(r)}</span>${r.locs.filter(li => LOCS[li].ii === ii).map(li => { const l = LOCS[li]; return `<div class="hl" style="display:grid;gap:3px;padding:4px 6px"><span style="font-size:.78rem">${l.tag ? `<b class="mono">${esc(l.rid)}</b> <span class="muted">${esc(l.nm)}</span>` : `<span class="code">${esc(o.code)}</span><span class="qty">${fmt(l.q, o.unit)} ${esc(o.unit)}</span>`}${pendTag(li)}</span>${l.tag ? toggles(li) : chips(li, val(li), null, 'set')}</div>`; }).join('')}</div>`).join('')}</div>`;
       }
     }
@@ -519,7 +525,7 @@
           return `<td><button type="button" data-e="cell" data-ii="${i}" data-fl="${esc(f)}" style="background:${heat(p)};color:${heatInk(p)}" aria-label="${esc(o.code)} ${esc(f)} ${fp(p)}">${Math.round(p)}</button></td>`;
         }).join('')}<td class="v pct">${fp(w)}</td><td class="v ${op > 100.01 ? 'diffbad' : ''}" title="正式版使用數量 ${o.official == null ? '—' : fmt(o.official, o.unit)} ÷ 圖面 ${fmt(o.total, o.unit)}">${fp(op)}</td><td class="v ${diff ? 'diffbad' : ''}">${diff == null ? '—' : fmt(diff, o.unit)}</td></tr>`;
       }).join('')}</tbody></table>
-      <p class="muted" style="font-size:.74rem;margin-top:8px">網站＝圖面完成率；正式版＝正式版使用數量 ÷ 圖面合計（紅字超過 100%）；差異＝網站累計 − 正式版使用數量（數量，載入時的值，非 0 標紅由內業判斷）。上線日 ${esc(GOLIVE || '未設定')}・數量版本 ${esc(VERSION)}</p></div>
+      <p class="muted" style="font-size:.74rem;margin-top:8px">網站＝圖面完成率（進料 50% × 進料比例 ＋ 施作 50% × 施作完成%）；格子＝各層完成率（含進料）；正式版＝正式版使用數量 ÷ 圖面合計（紅字超過 100%）；差異＝網站累計 − 正式版使用數量（數量，載入時的值，非 0 標紅由內業判斷）。上線日 ${esc(GOLIVE || '未設定')}・數量版本 ${esc(VERSION)}</p></div>
       <div class="drawer ${s.open ? 'open' : ''}">${drawer}</div></div>`;
   }
 
