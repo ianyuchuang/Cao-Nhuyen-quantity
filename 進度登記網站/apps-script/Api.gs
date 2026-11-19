@@ -29,9 +29,9 @@ function handle_(req) {
     var role = roleOf_(user.email);
     if (!role) {
       var reg = registerPending_(user);
-      var msg = reg === 'added' ? '已送出使用申請，請管理者在試算表「人員」表把你的狀態改成「核准」'
-        : reg === 'pending' ? '使用申請等待管理者核准中（試算表「人員」表狀態改成「核准」後即可使用）'
-        : reg === 'disabled' ? '這個帳號已被停用，請洽管理者' : '請向管理者申請權限';
+      var msg = reg === 'added' ? '已送出使用申請。請管理者在試算表「人員」表勾選你那一列的「核准」，勾選後重新整理此頁即可使用'
+        : reg === 'pending' ? '等待管理者核准。請管理者在試算表「人員」表勾選你那一列的「核准」，勾選後重新整理此頁即可使用'
+        : '請向管理者申請權限';
       return { ok: false, error: 'forbidden', message: msg, email: user.email };
     }
     rateLimit_(user.email);

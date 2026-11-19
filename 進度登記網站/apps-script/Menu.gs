@@ -15,6 +15,19 @@ function onOpen() {
     .addToUi();
 }
 
+/**
+ * 簡單觸發：在試算表編輯「人員」或「設定」表時清除權限快取，核准（勾選）立即生效。
+ * 只在試算表介面手動編輯時觸發；用 API 或程式改寫不會觸發（最慢 PEOPLE_TTL 秒生效）。
+ */
+function onEdit(e) {
+  try {
+    var name = e && e.range ? e.range.getSheet().getName() : '';
+    if (name !== CFG.SH.PEOPLE && name !== CFG.SH.SET) return;
+    clearAclCache_();
+    console.log('「' + name + '」已編輯，清除權限快取');
+  } catch (err) { console.error(err); }
+}
+
 function menuSync() {
   var ui = ui_();
   if (ui && ui.alert('從正式版同步主表',

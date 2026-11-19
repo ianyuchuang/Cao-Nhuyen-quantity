@@ -28,7 +28,8 @@ var CFG = {
   COL_USED: 7,           // 主表 G 使用數量
   COL_OPENING: 10,       // 網站每日數量 J 期初（主表 J 是「已使用」）
   COL_FIRST_DATE: 11,    // K 起為日期欄
-  ACL_TTL: 600,          // 共用名單快取 10 分鐘
+  ACL_TTL: 600,          // 編輯者／共用名單快取 10 分鐘
+  PEOPLE_TTL: 30,        // 人員表快取 30 秒（編輯人員表時 onEdit 也會立即清掉）
   OPENING_BY: '系統（期初推估）',
   OPENING_LEVEL: '期初',
   MANAGED_BG: '#ddebf7', // 主表中網站管理層級的 A～C 淺藍

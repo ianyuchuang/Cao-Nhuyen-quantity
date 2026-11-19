@@ -5,9 +5,10 @@
  *    驗證失敗的 token 負快取 60 秒；每個帳號每分鐘最多 RATE_PER_MIN 次請求。
  * 2. 權限來源（「設定」表「權限來源」）：
  *    - 「試算表共用」（預設）：本試算表編輯者（含擁有者）→ editor；檢視者／加註者 → viewer。
- *    - 「人員表」：本試算表編輯者 → editor；「人員」表列出的帳號 → viewer。
+ *    - 「人員表」：本試算表編輯者 → editor；「人員」表 E 欄「核准」有勾選的帳號 → viewer。
  *      工程師不必共用試算表，就看不到主表的單價、複價（建議）。
- *    名單快取 10 分鐘（可用選單「清除權限快取」立即生效）。
+ *    編輯者／共用名單快取 10 分鐘；人員表快取 PEOPLE_TTL 秒，而且在試算表編輯「人員」「設定」表時
+ *    onEdit 會立即清掉（選單「清除權限快取」也可以手動清）。
  */
 
 var RATE_PER_MIN = 60;
@@ -71,6 +72,10 @@ function roleOf_(email) {
   var acl = acl_();
   email = String(email).toLowerCase();
   if (acl.editors.indexOf(email) >= 0) return 'editor';
+  if (acl.src === 'people') {
+    var m = peopleMap_();
+    return Object.prototype.hasOwnProperty.call(m, email) && m[email].ok ? 'viewer' : null;
+  }
   if (acl.viewers.indexOf(email) >= 0) return 'viewer';
   return null;
 }
@@ -79,31 +84,54 @@ function aclSource_() {
   return trim_(getSetting_('權限來源')) === '人員表' ? 'people' : 'share';
 }
 
+/**
+ * 編輯者與（試算表共用模式的）檢視者名單，快取 ACL_TTL。
+ * 人員表模式的檢視者不放在這裡，每次由 peopleMap_()（短快取）判斷，核准後很快生效。
+ */
 function acl_() {
   var cache = CacheService.getScriptCache();
+  var src = aclSource_();
   var hit = cache.get('acl');
-  if (hit) return JSON.parse(hit);
+  if (hit) {
+    var c = JSON.parse(hit);
+    if (c.src === src) return c;
+  }
   var ss = ss_();
   var low = function (u) { return String(u.getEmail() || '').toLowerCase(); };
   var editors = ss.getEditors().map(low);
   try { var o = ss.getOwner(); if (o) editors.push(low(o)); } catch (e) { /* 共用雲端硬碟沒有擁有者 */ }
-  var viewers;
-  if (aclSource_() === 'people') viewers = peopleOk_();
-  else viewers = ss.getViewers().map(low); // 含加註者
-  var acl = { editors: editors.filter(String), viewers: viewers.filter(String) };
+  var viewers = src === 'people' ? [] : ss.getViewers().map(low); // 含加註者
+  var acl = { src: src, editors: editors.filter(String), viewers: viewers.filter(String) };
   cache.put('acl', JSON.stringify(acl), CFG.ACL_TTL);
   return acl;
 }
 
 /** 選單：清除權限快取（剛移除共用、改了人員表，要立即生效時用） */
 function clearAclCache() {
-  CacheService.getScriptCache().removeAll(['acl', 'people']);
+  clearAclCache_();
   toast_('已清除權限快取，新的名單立即生效。');
+}
+function clearAclCache_() {
+  CacheService.getScriptCache().removeAll(['acl', 'people']);
+}
+
+/** 除錯用：在 Apps Script 編輯器執行，建立權限快取（模擬有人剛用過網站） */
+function warmAclCache() {
+  acl_(); peopleMap_();
+  return aclCacheStatus();
+}
+
+/** 除錯用：在 Apps Script 編輯器執行，記錄權限快取目前是否存在（不會產生快取） */
+function aclCacheStatus() {
+  var c = CacheService.getScriptCache().getAll(['acl', 'people']);
+  var s = 'acl 快取：' + (c.acl ? '有' : '無') + '；people 快取：' + (c.people ? '有' : '無');
+  console.log(s);
+  return s;
 }
 
 /**
- * 「人員」表：A Google 帳號、B 顯示名稱、C 負責工項、D 備註、E 狀態
- * 狀態：空白或「核准」＝可用；「待核准」「停用」＝不可用。
+ * 「人員」表：A Google 帳號、B 顯示名稱、C 負責工項、D 備註、E 核准（勾選框）
+ * 只有 E 欄勾選（TRUE）＝可用；未勾選、空白或任何文字＝不可用（白名單）。
  * 回傳 { email: { name, ok, status } }
  */
 function peopleMap_() {
@@ -117,17 +145,12 @@ function peopleMap_() {
     sh.getRange(2, 1, sh.getLastRow() - 1, cols).getValues().forEach(function (r) {
       var e = trim_(r[0]).toLowerCase();
       if (!e || e.indexOf('@') <= 0 || map[e]) return;
-      var st = cols >= 5 ? trim_(r[4]) : '';
-      map[e] = { name: safeText_(r[1], 60), status: st, ok: st !== '待核准' && st !== '停用' };
+      var ok = cols >= 5 && r[4] === true;
+      map[e] = { name: safeText_(r[1], 60), status: ok ? '核准' : '未核准', ok: ok };
     });
   }
-  cache.put('people', JSON.stringify(map), CFG.ACL_TTL);
+  cache.put('people', JSON.stringify(map), CFG.PEOPLE_TTL);
   return map;
-}
-
-function peopleOk_() {
-  var m = peopleMap_();
-  return Object.keys(m).filter(function (e) { return m[e].ok; });
 }
 
 function displayName_(user) {
@@ -137,32 +160,34 @@ function displayName_(user) {
 }
 
 /**
- * 權限來源為「人員表」時，沒有權限的人登入就把帳號寫進「人員」表、狀態「待核准」，
- * 管理者把狀態改成「核准」（或清空）後即可使用（最多 10 分鐘，或選單「清除權限快取」立即生效）。
- * 回傳 'added'（剛加入）、'pending'（已在等待）、'disabled'（已停用）或 ''（不適用）
+ * 權限來源為「人員表」時，沒有權限的人登入就把帳號寫進「人員」表、E 欄「核准」未勾選，
+ * 管理者勾選後即可使用（onEdit 立即清快取；最慢 PEOPLE_TTL 秒）。
+ * 回傳 'added'（剛加入）、'pending'（已在名單、未勾選）或 ''（不適用）
  */
 var MAX_PENDING = 200;
 function registerPending_(user) {
   if (aclSource_() !== 'people') return '';
-  var p = peopleMap_()[user.email];
-  if (p) return p.status === '停用' ? 'disabled' : 'pending';
+  if (Object.prototype.hasOwnProperty.call(peopleMap_(), user.email)) return 'pending';
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return 'pending';
   try {
     var sh = sheet_(CFG.SH.PEOPLE);
     if (sh.getMaxColumns() < 5) sh.insertColumnsAfter(sh.getMaxColumns(), 5 - sh.getMaxColumns());
-    if (!trim_(sh.getRange(1, 5).getValue())) sh.getRange(1, 5).setValue('狀態');
+    var h = trim_(sh.getRange(1, 5).getValue());
+    if (!h || h === '狀態') sh.getRange(1, 5).setValue('核准');
     var n = sh.getLastRow() - 1;
     var rows = n > 0 ? sh.getRange(2, 1, n, 5).getValues() : [];
     var pending = 0;
     for (var i = 0; i < rows.length; i++) {
       if (trim_(rows[i][0]).toLowerCase() === user.email) return 'pending';
-      if (trim_(rows[i][4]) === '待核准') pending++;
+      if (rows[i][4] !== true) pending++;
     }
     if (pending >= MAX_PENDING) return 'pending';
-    sh.getRange(sh.getLastRow() + 1, 1, 1, 5).setValues([[safeText_(user.email, 120), safeText_(user.gname, 60), '',
-      '網站登入自動加入 ' + todayStr_(), '待核准']]);
-    CacheService.getScriptCache().remove('people');
+    var r = sh.getLastRow() + 1;
+    sh.getRange(r, 1, 1, 5).setValues([[safeText_(user.email, 120), safeText_(user.gname, 60), '',
+      '網站登入自動加入 ' + todayStr_(), false]]);
+    try { sh.getRange(r, 5).insertCheckboxes(); } catch (e) { /* 已有勾選框驗證時忽略 */ }
+    clearAclCache_();
     return 'added';
   } finally { lock.releaseLock(); }
 }

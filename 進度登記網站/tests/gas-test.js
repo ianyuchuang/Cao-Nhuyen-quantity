@@ -46,6 +46,8 @@ class Range {
   clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh.set(this.r + i, this.c + j, ''); return this; }
   clear() { return this.clearContent(); }
   setNumberFormat() { return this; } setBackground() { return this; }
+  insertCheckboxes() { this.sh.cb = (this.sh.cb || 0) + 1; return this; }
+  getSheet() { return this.sh; }
   copyTo(dest) { const v = this.getValues(); new Range(dest.sh, dest.r, dest.c, v.length, v[0].length).setValues(v); }
 }
 function makeSS(sheets) {
@@ -81,7 +83,7 @@ const cur = new Sheet('目前進度', [['層級', '項目', '單位', '樓層', 
 const log = new Sheet('進度紀錄', [['層級', '項目', '單位', '樓層', '房號', '位置ID', '細項', '完成%', '舊值', '完成量', '施工日期', '填寫層級', '登記人', '時間戳', 'UUID', '原因', '備註']]);
 const mat = new Sheet('進料', [['層級', '項目', '單位', '日期', '到貨數量', '登記人', '時間戳', 'UUID', '備註']]);
 const set = new Sheet('設定', [['項目', '值', '說明'], ['上線日', tw(GOLIVE), ''], ['數量版本', '2026-11-18', ''], ['OAuth 用戶端 ID', 'CID.apps.googleusercontent.com', '']]);
-const people = new Sheet('人員', [['Google 帳號', '顯示名稱'], ['eng@x.com', '王工程師']]);
+const people = new Sheet('人員', [['Google 帳號', '顯示名稱', '負責工項', '備註', '核准'], ['eng@x.com', '王工程師', '', '', true]]);
 const layer = new Sheet('分層進度', [['層級']]);
 const SS = makeSS([main, daily, layer, loc, cur, log, mat, people, set]);
 SS.getEditors = () => [{ getEmail: () => 'boss@x.com' }]; SS.getOwner = () => ({ getEmail: () => 'owner@x.com' }); SS.getViewers = () => [{ getEmail: () => 'eng@x.com' }];
@@ -228,17 +230,29 @@ FakeDate.now = () => NOW; let rl = 0; for (let i = 0; i < 70; i++) if (call({ ac
 ok(rl > 0, '每分鐘超過 60 次 → busy');
 
 // ---------- 7. 人員表自動填入＋待核准 ----------
-FakeDate.now = () => NOW + 120000; cache.clear();
+FakeDate.now = () => NOW + 120000; cache.clear(); people.cb = 0;
 let rx = call({ action: 'bootstrap', token: T.tokX });
 ok(rx.error === 'forbidden' && /送出使用申請/.test(rx.message), '未在人員表的人登入 → 自動加入並提示等待核准');
 const prow = people.d.find(r => r[0] === 'stranger@x.com');
-ok(prow && prow[4] === '待核准' && people.get(1, 5) === '狀態', '人員表新增一列，狀態「待核准」，E1 補上表頭');
+ok(prow && prow[4] === false && people.get(1, 5) === '核准' && people.cb === 1, '人員表新增一列，核准欄＝未勾選（FALSE）並設勾選框');
 rx = call({ action: 'bootstrap', token: T.tokX });
-ok(/核准中/.test(rx.message) && people.d.filter(r => r[0] === 'stranger@x.com').length === 1, '再次登入不重複加入');
+ok(/等待管理者核准/.test(rx.message) && /勾選/.test(rx.message) && people.d.filter(r => r[0] === 'stranger@x.com').length === 1, '再次登入不重複加入，訊息提示勾選核准');
 prow[4] = '核准'; cache.clear();
-ok(call({ action: 'bootstrap', token: T.tokX }).user.role === 'viewer', '狀態改成「核准」後可登入');
-prow[4] = '停用'; cache.clear();
-ok(/停用/.test(call({ action: 'bootstrap', token: T.tokX }).message), '狀態「停用」→ 不能登入');
+ok(call({ action: 'bootstrap', token: T.tokX }).error === 'forbidden', '白名單：核准欄寫文字「核准」不算，只認勾選');
+prow[4] = '拒絕'; cache.clear();
+ok(call({ action: 'bootstrap', token: T.tokX }).error === 'forbidden', '白名單：其他文字一律不可用');
+prow[4] = false; cache.clear();
+ok(call({ action: 'bootstrap', token: T.tokX }).error === 'forbidden', '未勾選 → 不可用（同時建立權限快取）');
+prow[4] = true;
+ok(call({ action: 'bootstrap', token: T.tokX }).error === 'forbidden', '勾選但快取未清 → 仍沿用快取（模擬原本核准後要等的情況）');
+ctx.onEdit({ range: new Range(people, 3, 5, 1, 1) });
+ok(!cache.has('acl') && !cache.has('people'), '在「人員」表編輯 → onEdit 清除 acl 與 people 快取');
+ok(call({ action: 'bootstrap', token: T.tokX }).user.role === 'viewer', '勾選核准後立即可登入');
+prow[4] = false; ctx.onEdit({ range: new Range(people, 3, 5, 1, 1) });
+ok(call({ action: 'bootstrap', token: T.tokX }).error === 'forbidden', '取消勾選後立即不可用');
+call({ action: 'bootstrap', token: T.tokE }); ctx.onEdit({ range: new Range(log, 2, 1, 1, 1) });
+ok(cache.has('acl'), '編輯其他表不清權限快取');
+ok(ctx.aclCacheStatus() === 'acl 快取：有；people 快取：有', 'aclCacheStatus 回報快取狀態');
 
 // ---------- 8. 從進度紀錄重建目前進度 ----------
 const snap8 = () => cur.d.slice(1).map(r => r.slice(6, 9).concat([r[10]]).map(v => v instanceof Date ? fmtDate(v, 'Asia/Taipei', 'yyyy-MM-dd') : v));
