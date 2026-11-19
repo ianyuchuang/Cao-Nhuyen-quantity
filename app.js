@@ -258,6 +258,13 @@
     return { mixed: units.size > 1, unit: [...units].join('、'), q, d, p: units.size > 1 ? null : (q ? d / q * 100 : 0), done, n: locs.length };
   }
   const sumTxt = s => s.mixed ? `完成 ${s.done}/${s.n} 筆` : fp(s.p);
+  /** 各單位的圖面數量合計，例如「605.96 m²」或「120.5 m²＋30 m」 */
+  const qtyTotal = locs => {
+    const by = {};
+    locs.forEach(l => { const u = ITEMS[LOCS[l].ii].unit; by[u] = (by[u] || 0) + LOCS[l].q; });
+    const order = u => ({ 'm²': 0, 'm': 1, '樘': 2 }[u] ?? 3);
+    return Object.keys(by).sort((a, b) => order(a) - order(b)).map(u => `${fmt(by[u], u)} ${esc(u)}`).join('＋');
+  };
   const bar = p => p == null ? '' : `<div class="pbar ${p >= 99.5 ? 'done' : ''}"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div>`;
   const heat = p => p <= 0 ? 'var(--h0)' : p < 20 ? 'var(--h1)' : p < 45 ? 'var(--h2)' : p < 70 ? 'var(--h3)' : p < 99.5 ? 'var(--h4)' : 'var(--h5)';
   const heatInk = p => p >= 70 ? '#fff' : 'var(--ink)';
@@ -411,7 +418,7 @@
     } else if (s.view === 'fl') {
       const C = CATS[s.ci]; title = C.cat; back = 'cat'; crumb = [['cat', '工項']];
       body = `<button type="button" class="rowbtn" data-a="fl" data-fl="${CODE_FL}"><div class="top"><span><b>代號層</b>　<span class="muted" style="font-size:.78rem">進料${C.hasCodeLevel ? '・不分樓層' : ''}</span></span><span class="muted" style="font-size:.78rem">${C.items.length} 個代號 ›</span></div></button>` +
-        C.floors.map(f => { const R = floorRooms(s.ci, f), g = sum(R.flatMap(r => r.locs)); return `<button type="button" class="rowbtn" data-a="fl" data-fl="${esc(f)}"><div class="top"><span><b class="mono">${esc(f)}</b>　<span class="muted" style="font-size:.78rem">${R.length} ${C.hasTag ? '組' : '間'}・${g.n} 筆</span></span><span class="pct">${sumTxt(g)}</span></div>${bar(g.p)}</button>`; }).join('');
+        C.floors.map(f => { const R = floorRooms(s.ci, f), g = sum(R.flatMap(r => r.locs)); return `<button type="button" class="rowbtn" data-a="fl" data-fl="${esc(f)}"><div class="top"><span><b class="mono">${esc(f)}</b>　<span class="muted" style="font-size:.78rem">${R.length} ${C.hasTag ? '組' : '間'}・${g.n} 筆</span></span><span><span class="qty" style="font-size:.78rem;margin-right:8px">${qtyTotal(R.flatMap(r => r.locs))}</span><span class="pct">${sumTxt(g)}</span></span></div>${bar(g.p)}</button>`; }).join('');
     } else if (s.view === 'code') {
       const C = CATS[s.ci]; title = C.cat + '・代號層'; back = 'fl'; crumb = [['cat', '工項'], ['fl', C.cat]];
       body = codeLevel(s.ci);
