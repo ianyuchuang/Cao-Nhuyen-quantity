@@ -70,9 +70,12 @@ function tagStepsFor_(itemName) {
 }
 
 // ---------- 共用工具 ----------
+/**
+ * 本試算表。權限範圍只有 spreadsheets.currentonly（只能改綁定的這份）＋ spreadsheets.readonly（其他試算表只能讀），
+ * 所以正式版由 Google 權限保證唯讀，程式就算寫錯也改不到。
+ */
 function ss_() {
-  var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-  return id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 function sheet_(name) {
   var sh = ss_().getSheetByName(name);

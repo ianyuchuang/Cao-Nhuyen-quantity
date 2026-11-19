@@ -25,6 +25,7 @@ class Sheet {
   getRange(r, c, nr, nc) { if (typeof r === 'string') throw new Error('A1 not supported'); return new Range(this, r, c, nr || 1, nc || 1); }
   getRangeList(list) { return { setBackground: () => {} }; }
   getIndex() { return 1; }
+  getColumnWidth() { return 100; } setColumnWidths() { return this; }
   setFrozenRows() {} setFrozenColumns() {} getFrozenRows() { return 3; } getFrozenColumns() { return 9; }
   get(r, c) { const row = this.d[r - 1]; const v = row ? row[c - 1] : undefined; return v === undefined || v === null ? '' : v; }
   set(r, c, v) { while (this.d.length < r) this.d.push([]); this.d[r - 1][c - 1] = v; if (c > this.maxCols) this.maxCols = c; }
@@ -56,6 +57,11 @@ class Range {
   clear() { return this.clearContent(); }
   setNumberFormat() { return this; } setBackground() { return this; }
   insertCheckboxes() { this.sh.cb = (this.sh.cb || 0) + 1; return this; }
+  grid(v) { const o = []; for (let i = 0; i < this.nr; i++) o.push(new Array(this.nc).fill(v)); return o; }
+  getNumberFormats() { return this.grid('General'); } getBackgrounds() { return this.grid('#ffffff'); }
+  getFontWeights() { return this.grid('normal'); } getHorizontalAlignments() { return this.grid('general'); }
+  getMergedRanges() { return []; } breakApart() { return this; } merge() { return this; }
+  setNumberFormats() { return this; } setBackgrounds() { return this; } setFontWeights() { return this; } setHorizontalAlignments() { return this; }
   getSheet() { return this.sh; }
   copyTo(dest) { const v = this.getValues(); new Range(dest.sh, dest.r, dest.c, v.length, v[0].length).setValues(v); }
 }
@@ -347,5 +353,44 @@ ok(/名額已滿/.test(call({ action: 'bootstrap', token: T.tokY }).message) && 
 ctx.LockService.getScriptLock = () => ({ tryLock: () => false, waitLock() {}, releaseLock() {} });
 ok(call({ action: 'bootstrap', token: T.tokZ }).error === 'busy', '搶不到鎖 → busy（不謊稱等待核准）');
 ctx.LockService.getScriptLock = realLock; ctx.MAX_PENDING = 200;
+
+// ---------- 14. Fable 第 5 項：進料輸入驗證 ----------
+FakeDate.now = () => NOW + 2400000; cache.clear();
+const mcall = (o) => call(Object.assign({ action: 'material', token: tokE2, date: '2026-11-20' }, o));
+ok(/上線日/.test(mcall({ uuid: 'MAT5-00001', lv: 'A.1', qty: 1, date: '2026-11-09' }).message), '進料日期早於上線日 → 拒絕');
+ok(/不能超過 200/.test(mcall({ uuid: 'MAT5-00002', lv: 'A.1', qty: 201 }).message), '單筆超過圖面合計 2 倍（100 × 2）→ 拒絕');
+ok(/備註/.test(mcall({ uuid: 'MAT5-00003', lv: 'A.1', qty: -5 }).message), '負數進料沒寫備註 → 拒絕');
+const sumA3 = Number(ctx.materialSummary_()['A.3'].sum);
+ok(/小於 0/.test(mcall({ uuid: 'MAT5-00004', lv: 'A.3', qty: -(sumA3 + 0.5), note: '更正' }).message), '登記後進料累計小於 0 → 拒絕');
+ok(mcall({ uuid: 'MAT5-00005', lv: 'A.1', qty: -1, note: '退料 1' }).ok, '負數進料有備註、累計不小於 0 → 可登記');
+ok(mcall({ uuid: 'MAT5-00006', lv: 'x'.repeat(500), qty: 1 }).message.length < 80, '找不到層級的錯誤訊息會截斷，不回顯長字串');
+let matBusy = 0; for (let i = 0; i < 12; i++) if (mcall({ uuid: 'MAT5-1' + String(i).padStart(4, '0'), lv: 'A.2', qty: 0.1 }).error === 'busy') matBusy++;
+ok(matBusy >= 2, '進料每個帳號每分鐘最多 10 筆（這分鐘已用 1 筆，第 11、12 筆 busy）');
+
+// ---------- 15. Fable 第 6 項：正式版只讀 ----------
+const manifest = JSON.parse(fs.readFileSync(path.join(DIR, 'appsscript.json'), 'utf8'));
+ok(!manifest.oauthScopes.some(x => /\/auth\/(spreadsheets|drive|drive\.file)$/.test(x)) && manifest.oauthScopes.includes('https://www.googleapis.com/auth/spreadsheets.readonly') && manifest.oauthScopes.includes('https://www.googleapis.com/auth/spreadsheets.currentonly'),
+  '權限範圍：只有 spreadsheets.currentonly（本試算表）＋ spreadsheets.readonly（其他只讀），沒有可編輯所有試算表／雲端硬碟的範圍');
+const allSrc = fs.readdirSync(DIR).filter(f => f.endsWith('.gs')).map(f => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+ok(!/openById\(/.test(allSrc) && !/\.copyTo\(/.test(allSrc) && !/Sheets\.Spreadsheets\.(batchUpdate|create)|Values\.(update|append|clear|batchUpdate|batchClear)/.test(allSrc),
+  '程式沒有 openById、copyTo，Sheets API 只用 get（沒有任何寫入呼叫）');
+ok(manifest.dependencies.enabledAdvancedServices.some(x => x.serviceId === 'sheets'), '啟用 Sheets 進階服務（唯讀權限讀正式版）');
+const official = main.d.map(r => r.slice());
+official[5][6] = 77;
+const toSerial = v => v instanceof Date ? (v.getTime() + 8 * 3600000) / 86400000 + 25569 : v;
+const sheetsCalls = [];
+ctx.Sheets = {
+  Spreadsheets: new Proxy({
+    get: (id, o) => { sheetsCalls.push('get ' + id); return { sheets: [{ properties: { title: ctx.CFG.OFFICIAL_SHEET, gridProperties: { rowCount: official.length, columnCount: W, frozenRowCount: 3, frozenColumnCount: 9 } } }] }; },
+    Values: new Proxy({ get: (id, range, o) => { sheetsCalls.push('values.get ' + id + ' ' + range + ' ' + o.valueRenderOption); return { values: official.map(r => r.map(toSerial)) }; } },
+      { get(t, k) { if (k in t) return t[k]; return () => { sheetsCalls.push('WRITE ' + String(k)); throw new Error('寫入正式版'); }; } })
+  }, { get(t, k) { if (k in t) return t[k]; return () => { sheetsCalls.push('WRITE ' + String(k)); throw new Error('寫入正式版'); }; } })
+};
+const syncR = ctx.syncFromOfficial();
+ok(syncR.ok && sheetsCalls.length === 2 && sheetsCalls.every(x => !x.startsWith('WRITE') && x.includes(ctx.CFG.OFFICIAL_ID)) && sheetsCalls[1].includes('UNFORMATTED_VALUE'),
+  '同步主表：只對正式版呼叫 spreadsheets.get 與 values.get');
+ok(main.get(6, 7) === 77 && JSON.stringify(main.d.slice(4, 7).map(r => r.slice(0, 6))) === JSON.stringify(official.slice(4, 7).map(r => r.slice(0, 6))), '同步後主表數值＝正式版');
+const hdrOk = dates.every((d, i) => ctx.dateStr_(main.get(3, 11 + i)) === fmtDate(d, 'Asia/Taipei', 'yyyy-MM-dd'));
+ok(hdrOk, '表頭日期由序號轉回日期，與正式版同一天');
 
 console.log('\n全部通過');

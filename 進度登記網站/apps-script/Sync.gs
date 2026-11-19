@@ -1,8 +1,11 @@
 /**
  * 從正式版同步主表「施工-實際進度」（只讀正式版）
  *
- * 做法：把正式版「施工-實際進度 (修訂2版)」整張複製成本試算表的暫存工作表（copyTo 只寫入目的地，不會改動正式版），
- * 再把暫存表的格式貼到本表主表、數值改寫成正式版算好的值（不帶公式，避免跨工作表參照變成 #REF!），最後刪掉暫存表。
+ * 權限範圍只有 spreadsheets.currentonly（只能改本試算表）＋ spreadsheets.readonly（其他試算表只能讀），
+ * 所以正式版由 Google 權限保證唯讀。SpreadsheetApp 開其他試算表需要完整權限不能用，
+ * 改用 Sheets API（進階服務 Sheets）的 spreadsheets.get / values.get 讀取。
+ * 做法：讀正式版「施工-實際進度 (修訂2版)」算好的數值（不帶公式：正式版公式參照它自己的其他工作表，帶過來會變 #REF!），
+ * 寫進本表主表。主表的格式保留不動（正式版新增列時，新列沿用上一列格式）；凍結列欄跟正式版一致。
  * 主表工作表本身不刪除，其他工作表對它的參照不會失效。
  * 接著：
  *   1. 主表中網站管理的層級 A～C 標淺藍；
@@ -12,40 +15,83 @@
 function syncFromOfficial() {
   var lock = LockService.getScriptLock();
   lock.waitLock(120000);
-  var ss = ss_(), tmp = null;
+  var ss = ss_(), t0 = Date.now();
   try {
-    var src = SpreadsheetApp.openById(CFG.OFFICIAL_ID).getSheetByName(CFG.OFFICIAL_SHEET);
-    if (!src) throw new Error('正式版找不到工作表「' + CFG.OFFICIAL_SHEET + '」');
-
+    var off = readOfficial_();               // 只讀
     var snap = snapshotDaily_();             // 先記下網站每日數量（依層級）
-    tmp = src.copyTo(ss);                    // 只寫入本試算表
-    tmp.setName('_同步暫存_' + Date.now());
     var main = ss.getSheetByName(CFG.SH.MAIN) || ss.insertSheet(CFG.SH.MAIN, 0);
-    var R = tmp.getMaxRows(), C = tmp.getMaxColumns();
+    var R = off.R, C = off.C;
     if (main.getMaxRows() < R) main.insertRowsAfter(main.getMaxRows(), R - main.getMaxRows());
     if (main.getMaxRows() > R) main.deleteRows(R + 1, main.getMaxRows() - R);
     if (main.getMaxColumns() < C) main.insertColumnsAfter(main.getMaxColumns(), C - main.getMaxColumns());
     if (main.getMaxColumns() > C) main.deleteColumns(C + 1, main.getMaxColumns() - C);
-    main.getRange(1, 1, R, C).clear();
-    // 只貼格式＋正式版算好的數值：正式版的公式會參照它自己的其他工作表（例如「施工-實際進度 (修訂1版)」），
-    // 連公式一起複製會變成 #REF!，所以數值一律從正式版讀取後寫入（讀取不會改動正式版）。
-    tmp.getRange(1, 1, R, C).copyTo(main.getRange(1, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-    main.getRange(1, 1, R, C).setValues(protectRows_(src.getRange(1, 1, R, C).getValues()));
-    main.setFrozenRows(src.getFrozenRows());
-    main.setFrozenColumns(src.getFrozenColumns());
-    ss.deleteSheet(tmp);
-    tmp = null;
+    var to = main.getRange(1, 1, R, C);
+    to.clearContent();
+    to.setValues(protectRows_(off.values));
+    main.setFrozenRows(off.frozenRows);
+    main.setFrozenColumns(off.frozenCols);
     SpreadsheetApp.flush();
 
     highlightManaged_(main);
     var moved = realignDaily_(main, snap);
     PropertiesService.getScriptProperties().setProperty('LAST_SYNC', new Date().toISOString());
+    console.log('同步主表完成：' + R + ' 列 × ' + C + ' 欄，' + Math.round((Date.now() - t0) / 1000) + ' 秒');
     toast_('已從正式版同步主表' + (moved ? '，並重排「網站每日數量」' : '') + '。');
     return { ok: true, realigned: moved };
   } finally {
-    if (tmp) { try { ss.deleteSheet(tmp); } catch (e) { /* 忽略 */ } }
     lock.releaseLock();
   }
+}
+
+/**
+ * 讀正式版（唯讀）：回傳 { R, C, frozenRows, frozenCols, values }，values 補滿成 R × C。
+ * 數值用 UNFORMATTED_VALUE；表頭日期列（第 HEADER_ROWS 列、日期欄起）由序號轉回日期。
+ */
+function readOfficial_() {
+  var meta = Sheets.Spreadsheets.get(CFG.OFFICIAL_ID,
+    { fields: 'sheets(properties(title,gridProperties(rowCount,columnCount,frozenRowCount,frozenColumnCount)))' });
+  var p = (meta.sheets || []).map(function (s) { return s.properties; })
+    .filter(function (x) { return x.title === CFG.OFFICIAL_SHEET; })[0];
+  if (!p) throw new Error('正式版找不到工作表「' + CFG.OFFICIAL_SHEET + '」');
+  var g = p.gridProperties || {};
+  var R = g.rowCount, C = g.columnCount;
+  var res = Sheets.Spreadsheets.Values.get(CFG.OFFICIAL_ID, "'" + CFG.OFFICIAL_SHEET.replace(/'/g, "''") + "'",
+    { valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'SERIAL_NUMBER', majorDimension: 'ROWS' });
+  var raw = res.values || [];
+  var values = [];
+  for (var i = 0; i < R; i++) {
+    var src = raw[i] || [], row = new Array(C);
+    for (var j = 0; j < C; j++) {
+      var v = j < src.length && src[j] != null ? src[j] : '';
+      if (i === CFG.HEADER_ROWS - 1 && j >= CFG.COL_FIRST_DATE - 1 && typeof v === 'number' && v > 30000) v = serialToDate_(v);
+      row[j] = v;
+    }
+    values.push(row);
+  }
+  return { R: R, C: C, frozenRows: g.frozenRowCount || 0, frozenCols: g.frozenColumnCount || 0, values: values };
+}
+
+/** 試算表日期序號 → 本地（Asia/Taipei）當天 0 時的 Date */
+function serialToDate_(n) {
+  var u = new Date(Math.round((n - 25569) * 86400000));
+  return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate());
+}
+
+/**
+ * 檢查用（在 Apps Script 編輯器執行）：確認權限範圍沒有「編輯所有試算表」，並試讀正式版。只讀，不寫入正式版。
+ */
+function officialAccessCheck() {
+  var res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(ScriptApp.getOAuthToken()),
+    { muteHttpExceptions: true });
+  var scopes = String((JSON.parse(res.getContentText() || '{}').scope) || '').split(' ').filter(String).sort();
+  var full = scopes.filter(function (x) { return /\/auth\/(spreadsheets|drive|drive\.file)$/.test(x); });
+  var off = readOfficial_();
+  var msg = '權限範圍：' + scopes.map(function (x) { return x.replace('https://www.googleapis.com/auth/', ''); }).join('、') +
+    '\n可編輯所有試算表／雲端硬碟的範圍：' + (full.length ? full.join('、') + '（不應出現）' : '無') +
+    '\n正式版「' + CFG.OFFICIAL_SHEET + '」：' + off.R + ' 列 × ' + off.C + ' 欄，A' + (CFG.HEADER_ROWS + 1) + '＝' + off.values[CFG.HEADER_ROWS][0] +
+    '，第一個日期欄＝' + off.values[CFG.HEADER_ROWS - 1][CFG.COL_FIRST_DATE - 1];
+  console.log(msg);
+  return msg;
 }
 
 /** 網站每日數量：{ 層級: { J: 期初, d: {yyyy-MM-dd: 數量} } } */

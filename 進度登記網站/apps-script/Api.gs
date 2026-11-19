@@ -188,25 +188,43 @@ function curArr_(c) { return [c.p === '' ? 0 : c.p, c.f, c.s, c.d || '', c.by ||
 
 // ---------- material ----------
 /** req: { uuid, lv, date, qty, note } 進料在代號層整批登記 */
+/**
+ * 進料登記（代號層整批）。檢查：
+ * - 日期：不早於上線日、不晚於今天（與登記進度相同）；
+ * - 數量：不為 0，單筆絕對值不超過圖面合計 × MAT_MAX_RATIO（至少 1）；負數（退料、更正）一定要填備註；
+ * - 登記後該代號進料累計不能小於 0；
+ * - 每個帳號每分鐘最多 MAT_RATE_PER_MIN 筆（每筆都會在鎖內重算該代號）。
+ */
+var MAT_RATE_PER_MIN = 10, MAT_MAX_RATIO = 2;
 function material_(user, req) {
   var date = dateStr_(req.date);
   var qty = Number(req.qty);
   if (!date) throw apiError_('bad_request', '日期格式錯誤');
   if (date > todayStr_()) throw apiError_('bad_request', '日期不能晚於今天');
+  var goLive = goLive_();
+  if (goLive && date < goLive) throw apiError_('bad_request', '日期不能早於上線日 ' + goLive);
   if (!isFinite(qty) || qty === 0) throw apiError_('bad_request', '請填到貨數量');
   var uuid = trim_(req.uuid);
   if (!/^[A-Za-z0-9-]{8,64}$/.test(uuid)) throw apiError_('bad_request', 'UUID 格式錯誤');
-  if (Math.abs(qty) > 1e7) throw apiError_('bad_request', '數量不合理');
   var L = loadLocations_();
-  var it = typeof req.lv === 'string' ? L.itemByLv[trim_(req.lv)] : null;
-  if (!it) throw apiError_('bad_request', '找不到層級 ' + req.lv);
+  var lvIn = typeof req.lv === 'string' ? trim_(req.lv) : '';
+  var it = lvIn ? L.itemByLv[lvIn] : null;
+  if (!it) throw apiError_('bad_request', '找不到層級 ' + lvIn.slice(0, 40));
+  var total = L.locs.reduce(function (s, l) { return l.lv === it.lv ? s + l.q : s; }, 0);
+  var maxQ = Math.max(1, round_(total * MAT_MAX_RATIO, 4));
+  if (Math.abs(qty) > maxQ) throw apiError_('bad_request', '單筆進料數量不能超過 ' + maxQ + '（圖面合計 ' + round_(total, 3) + ' 的 ' + MAT_MAX_RATIO + ' 倍）');
+  var note = safeText_(req.note);
+  if (qty < 0 && !note) throw apiError_('bad_request', '進料數量為負（退料或更正）時，請在備註寫原因');
+  rateLimitMat_(user.email);
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) throw apiError_('busy', '目前登記的人較多，請稍後再試');
   try {
     var sh = sheet_(CFG.SH.MAT);
     var seen = uuidSet_(sh, MAT_COL.UUID);
     if (!seen[uuid]) {
-      sh.getRange(sh.getLastRow() + 1, 1, 1, MAT_WIDTH).setValues(protectRows_([[it.lv, it.name, it.unit, date, round_(qty, 4), user.email, new Date(), uuid, safeText_(req.note)]]));
+      var before = (materialSummary_()[it.lv] || { sum: 0 }).sum;
+      if (before + qty < -1e-9) throw apiError_('bad_request', '登記後進料累計會小於 0（目前累計 ' + round_(before, 3) + '）');
+      sh.getRange(sh.getLastRow() + 1, 1, 1, MAT_WIDTH).setValues(protectRows_([[it.lv, it.name, it.unit, date, round_(qty, 4), user.email, new Date(), uuid, note]]));
       SpreadsheetApp.flush();
       recalcLevels_([it.lv]); // 進料佔完成量 50%，到貨當天要計入每日數量
     }
@@ -215,6 +233,15 @@ function material_(user, req) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** 進料登記另有較低的每分鐘上限（每筆都會在鎖內重算該代號） */
+function rateLimitMat_(email) {
+  var cache = CacheService.getScriptCache();
+  var key = 'rlm_' + sha_(email) + '_' + Math.floor(Date.now() / 60000);
+  var n = Number(cache.get(key)) || 0;
+  if (n >= MAT_RATE_PER_MIN) throw apiError_('busy', '進料登記太頻繁，請一分鐘後再試');
+  cache.put(key, String(n + 1), 120);
 }
 
 // ---------- history ----------
