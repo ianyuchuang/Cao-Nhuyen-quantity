@@ -39,6 +39,14 @@ for c in data:
                 raise SystemExit(f'{it["code"]} {r[0]} {r[1]} 找不到同層的{r[1][0]}梯房間')
             room[0][3] += r[3]
             rows.remove(r)
+        # 坡道「XXX 斜面」（依坡度增加的面積）併入同層同房號 XXX（2026-11-19 使用者要求）
+        for r in [x for x in rows if x[1].endswith('斜面')]:
+            base = r[1][:-2].strip()
+            room = [x for x in rows if x[0] == r[0] and x[1] == base]
+            if not room:
+                raise SystemExit(f'{it["code"]} {r[0]} {r[1]} 找不到同層的 {base}')
+            room[0][3] += r[3]
+            rows.remove(r)
         for r in rows:
             fl, rid, nm, q = r[0], r[1], r[2], r[3]
             if '比例分配' in rid:
