@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; connect-src https://script.google.com https://script.googleusercontent.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; img-src 'self' data: https://*.googleusercontent.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>工項進度登記</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <div class="login-card">
+    <h1>工項進度登記</h1>
+    <p class="muted">用 Google 帳號登入。帳號需要被加入試算表「工項進度登記」的共用名單。</p>
+    <div id="gbtn"></div>
+    <p id="loginMsg" class="login-msg" role="alert"></p>
+    <div class="login-demo">
+      <button class="btn" id="demoBtn" type="button">示範模式（本機假資料）</button>
+      <p class="muted">示範模式不連線、不寫入試算表，資料是隨機產生的假資料，只存在這台裝置。</p>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="shell" hidden>
+  <header class="top">
+    <div class="brand"><b>工項進度登記</b><span id="demoTag" class="tag w" hidden>示範模式</span></div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="版面">
+      <button role="tab" data-tab="A" aria-selected="true">登記</button>
+      <button role="tab" data-tab="C" aria-selected="false">整層矩陣</button>
+      <button role="tab" data-tab="E" aria-selected="false">總覽</button>
+    </nav>
+    <div class="meta">
+      <label class="datef">施工日期 <input type="date" id="workDate"></label>
+      <span id="net" class="net" role="status"></span>
+      <span id="who" class="who"></span>
+      <button class="btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <div id="menu" class="menu" hidden>
+        <button type="button" data-m="reload">重新載入資料</button>
+        <button type="button" data-m="flush">立即重送待送資料</button>
+        <button type="button" data-m="recalc" hidden>全部重算（編輯者）</button>
+        <button type="button" data-m="demoOffline" hidden>示範：切換模擬斷線</button>
+        <button type="button" data-m="demoOther" hidden>示範：模擬別人同時修改</button>
+        <button type="button" data-m="demoReset" hidden>示範：還原假資料</button>
+        <button type="button" data-m="logout">登出</button>
+      </div>
+    </div>
+  </header>
+  <div id="bars"></div>
+  <main id="stage" role="tabpanel"></main>
+</div>
+
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
