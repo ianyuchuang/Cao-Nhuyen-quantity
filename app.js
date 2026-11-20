@@ -125,7 +125,13 @@
     return j;
   }
   const obKey = () => 'progress-outbox:' + (DEMO ? 'demo' : (ME && ME.email) || String(decodeJwt(AUTH.token || '').email || 'anon').toLowerCase());
-  function loadOutbox() { try { OUTBOX = JSON.parse(localStorage.getItem(obKey()) || '[]'); } catch (e) { OUTBOX = []; } }
+  function loadOutbox() {
+    let raw = '[]';
+    try { raw = localStorage.getItem(obKey()) || '[]'; } catch (e) { /* 無法讀取就當空的 */ }
+    const r = cleanOutbox(raw); // web/outbox.js：格式不對的批次丟掉，避免畫面卡住
+    OUTBOX = r.list;
+    if (r.dropped) { saveOutbox(); toast('手機裡有 ' + r.dropped + ' 批離線資料格式不正確，已略過', 6000); }
+  }
   function saveOutbox() { try { localStorage.setItem(obKey(), JSON.stringify(OUTBOX)); } catch (e) { toast('裝置儲存空間不足，離線資料可能無法保留'); } }
 
   let flushing = false;
@@ -141,6 +147,7 @@
           if (e.net) { NET = 'off'; break; }
           if (e.code === 'auth') { needLogin(); break; }
           if (e.code === 'busy') { NET = 'busy'; break; }
+          if (e.code === 'config') { NET = 'busy'; toast((e.message || '系統設定有問題') + '（資料已保留在手機，修好後會自動重送）', 6000); break; }
           OUTBOX.shift(); saveOutbox(); revertBatch(b);
           toast('未儲存：' + (e.message || e.code), 6000);
           continue;
@@ -694,7 +701,7 @@
       if (e.code === 'forbidden') { showLogin(`${e.email || ''} 尚未核准：${e.message || '請管理者在試算表「人員」表勾選「核准」，勾選後重新整理此頁即可使用'}`, true); return; }
       if (e.code === 'auth') { needLogin(e.message); afterLogin = start; return; }
       let pending = 0;
-      try { pending = JSON.parse(localStorage.getItem(obKey()) || '[]').length; } catch (x) { /* 忽略 */ }
+      try { pending = cleanOutbox(localStorage.getItem(obKey())).list.length; } catch (x) { /* 忽略 */ }
       $('stage').innerHTML = `<p class="empty">讀取失敗：${esc(e.message || e.code)}。${pending ? `手機裡還有 ${pending} 批未送出的登記，連線後按重試會自動送出。` : ''}<button type="button" class="btn" id="retryBtn">重試</button></p>`;
       $('retryBtn').onclick = start;
       return;
