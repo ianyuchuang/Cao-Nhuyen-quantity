@@ -116,8 +116,16 @@ const tokensRaw = { tokE: { aud: 'CID.apps.googleusercontent.com', iss: 'https:/
   tokZ: { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'nobody@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) },
   tokBadAud: { aud: 'OTHER', iss: 'accounts.google.com', email: 'eng@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) } };
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
-const tokens = {}; const T = {};
-Object.keys(tokensRaw).forEach(k => { const jwt = 'h.' + b64(tokensRaw[k]) + '.sig_' + k; tokens[jwt] = tokensRaw[k]; T[k] = jwt; });
+// 真的 RS256 簽章：測試用 RSA 金鑰，UrlFetch 模擬 Google JWKS
+const nodeCrypto = require('crypto');
+const KEYS = { k1: nodeCrypto.generateKeyPairSync('rsa', { modulusLength: 2048 }), k2: nodeCrypto.generateKeyPairSync('rsa', { modulusLength: 2048 }) };
+let JWKS_KIDS = ['k1']; // Google 目前公布的金鑰
+const sign = (payload, kid = 'k1', key = KEYS[kid].privateKey) => {
+  const signed = b64({ alg: 'RS256', kid, typ: 'JWT' }) + '.' + b64(Object.assign({ iat: NOW / 1000 - 60 }, payload));
+  return signed + '.' + nodeCrypto.sign('sha256', Buffer.from(signed), key).toString('base64url');
+};
+const T = {};
+Object.keys(tokensRaw).forEach(k => { T[k] = sign(tokensRaw[k]); });
 const ctx = {
   console, JSON, Math, Object, Array, String, Number, Error, isFinite, isNaN, encodeURIComponent, Date: FakeDate,
   SpreadsheetApp: { getActiveSpreadsheet: () => SS, openById: () => { throw new Error('測試中不應開啟正式版'); }, flush() {}, getUi() { throw new Error('no ui'); }, CopyPasteType: { PASTE_NORMAL: 1 } },
@@ -126,7 +134,11 @@ const ctx = {
   LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
   Utilities: { formatDate: fmtDate, base64DecodeWebSafe: x => Array.from(Buffer.from(x.replace(/=+$/,''), 'base64url')), newBlob: a => ({ getDataAsString: () => Buffer.from(a).toString('utf8') }), getUuid: () => 'u-' + Math.random().toString(36).slice(2), computeDigest: (a, s) => Array.from(require('crypto').createHash('sha256').update(s).digest()).map(b => b > 127 ? b - 256 : b),
     DigestAlgorithm: { SHA_256: 1 }, Charset: { UTF_8: 1 } },
-  UrlFetchApp: { fetch: url => { const t = decodeURIComponent(url.split('id_token=')[1]); const info = tokens[t]; return { getResponseCode: () => info ? 200 : 400, getContentText: () => JSON.stringify(info || {}) }; } },
+  UrlFetchApp: { fetch: url => {
+    if (url !== 'https://www.googleapis.com/oauth2/v3/certs') throw new Error('不應連線到 ' + url);
+    const keys = JWKS_KIDS.map(kid => Object.assign({ kid, alg: 'RS256', use: 'sig' }, KEYS[kid].publicKey.export({ format: 'jwk' })));
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ keys }), getHeaders: () => ({ 'Cache-Control': 'public, max-age=20000, must-revalidate' }) };
+  } },
   ContentService: { createTextOutput: s => ({ s, setMimeType() { return this; } }), MimeType: { JSON: 1 } },
   ScriptApp: {}
 };
@@ -223,11 +235,11 @@ ok(dval('A.2', '2026-11-12') === before.door && drow('A.2') === 8, 'A.2 跟著�
 ok(/G4:G8/.test(daily.f['4,8']) && /K4:[A-Z]+8/.test(daily.f['4,7']), '重寫 E/G/H/I 公式，範圍到最後一列');
 ok(!ctx.realignDaily_(newMain, ctx.snapshotDaily_()), '已對齊時不重排');
 // ---------- 6. 資安修正 ----------
-ok(call({ action: 'bootstrap', token: 'garbage' }).error === 'auth', '非 JWT 格式 token → auth（不打 tokeninfo）');
+ok(call({ action: 'bootstrap', token: 'garbage' }).error === 'auth', '非 JWT 格式 token → auth（不對外連線）');
 let fetches = 0; const of = ctx.UrlFetchApp.fetch; ctx.UrlFetchApp.fetch = u => { fetches++; return of(u); };
 const fake = 'h.' + b64({ aud: 'OTHER', exp: NOW / 1000 + 3600 }) + '.x';
 call({ action: 'bootstrap', token: fake }); call({ action: 'bootstrap', token: fake });
-ok(fetches === 0, 'aud 不符的 token 在本機就擋下，負快取');
+ok(fetches === 0, 'aud 不符的 token 在本機就擋下，不對外連線');
 ctx.UrlFetchApp.fetch = of;
 r = call({ action: 'submit', token: T.tokV, date: '2026-11-20', reason: '=IMPORTXML("http://x","//a")', items: [{ uuid: 'INJ-00001', id: 'A.1|1F|101', p: 10, old: { p: 50 }, note: '+SUM(A1)' }] });
 const last = log.d[log.getLastRow() - 1];
@@ -296,8 +308,7 @@ ok(mat.d.some(r => r[0] === 'A.1' && r[4] === 120), '重設期初不影響工程
 FakeDate.now = () => NOW + 600000; cache.clear();
 FORMULAS.length = 0;
 people.d.push(['eng2@x.com', '=HYPERLINK("http://evil","點我")', '', true]); cache.clear();
-tokens['h.' + b64({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) }) + '.sig_e2'] = { aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: 'true', exp: String(NOW / 1000 + 3600) };
-const tokE2 = Object.keys(tokens).find(k => k.endsWith('.sig_e2'));
+const tokE2 = sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: true, exp: NOW / 1000 + 3600 });
 r = call({ action: 'submit', token: tokE2, date: '2026-11-20', reason: '=TEXTJOIN(",",1,施工!D4:F9)', items: [{ uuid: 'INJ-00010', id: 'A.1|1F|102', p: 5, note: '@x' }] });
 ok(r.ok && r.saved.length === 1, '名稱、原因、備註都以 = @ 開頭的登記寫入成功');
 r = call({ action: 'material', token: tokE2, uuid: 'INJ-00011', lv: 'A.2', date: '2026-11-20', qty: 1, note: '=1+2' });
@@ -324,20 +335,37 @@ for (const v of ['TRUE', 'true', 1, '核准', 'v']) { e2row[3] = v; cache.clear(
 e2row[3] = true; cache.clear();
 ok(call({ action: 'bootstrap', token: tokE2 }).user.role === 'viewer', '核准欄勾選 TRUE → 可用');
 
-// ---------- 12. Fable 第 3 項：tokeninfo 全域上限、成功快取到到期 ----------
+// ---------- 12. 登入憑證在本機驗 RS256 簽章（第三次審查第 2 項） ----------
 ok(cacheTtl.get('tok_' + ctx.sha_(tokE2)) === 3600 - 600 - 5, '驗證成功的憑證快取到到期（剩 50 分鐘就快取 50 分鐘），不是 10 分鐘');
 FakeDate.now = () => NOW + 1200000; cache.clear();
-const forged = i => 'h.' + b64({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'f' + i + '@x.com', exp: String(NOW / 1000 + 3600) }) + '.sig_forged' + i;
-let tfN = 0; const tiRealFetch = ctx.UrlFetchApp.fetch; ctx.UrlFetchApp.fetch = u => { tfN++; return tiRealFetch(u); };
-const fr = []; for (let i = 0; i < 70; i++) fr.push(call({ action: 'bootstrap', token: forged(i) }));
-ok(tfN === 60 && fr.slice(0, 60).every(x => x.error === 'auth') && fr.slice(60).every(x => x.error === 'busy'), '偽造憑證：每分鐘最多向 Google 驗證 60 次，之後回 busy');
-cache.set('tok_' + ctx.sha_(tokE2), JSON.stringify({ email: 'eng2@x.com', gname: '' }));
-ok(call({ action: 'bootstrap', token: tokE2 }).ok, '已驗證過（快取中）的憑證不受全域上限影響');
-FakeDate.now = () => NOW + 1200000 + 60000 * 2;
-cache.set('ti_h_' + Math.floor((NOW + 1200000 + 120000) / 3600000), '600');
-const tfBefore = tfN;
-ok(call({ action: 'bootstrap', token: forged(99) }).error === 'busy' && tfN === tfBefore, '每小時上限 600 次：超過就不再向 Google 驗證');
-ctx.UrlFetchApp.fetch = tiRealFetch;
+let jw = 0; const jwReal = ctx.UrlFetchApp.fetch; ctx.UrlFetchApp.fetch = u => { jw++; return jwReal(u); };
+const okTok = sign({ aud: 'CID.apps.googleusercontent.com', iss: 'https://accounts.google.com', email: 'eng2@x.com', email_verified: true, exp: NOW / 1000 + 3600 });
+ok(call({ action: 'bootstrap', token: okTok }).ok && jw === 1, '正確簽章 → 通過（第一次抓 Google 公開金鑰）');
+ok(cacheTtl.get('jwks') === 20000, '公開金鑰快取到 Cache-Control max-age');
+const otherTok = sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng@x.com', email_verified: 'true', exp: NOW / 1000 + 3000 });
+call({ action: 'bootstrap', token: otherTok });
+ok(jw === 1, '之後的憑證用快取的公開金鑰驗，不再對外連線');
+const forgedKey = nodeCrypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+const fr = []; for (let i = 0; i < 300; i++) fr.push(call({ action: 'bootstrap', token: sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'f' + i + '@x.com', email_verified: true, exp: NOW / 1000 + 3600 }, 'k1', forgedKey) }));
+ok(fr.every(x => x.error === 'auth') && jw === 1, '偽造簽章 300 次 → 全部 auth，而且完全沒有對外連線（不再有全域上限可被拿來擋登入）');
+ok(call({ action: 'bootstrap', token: okTok }).ok, '被大量偽造憑證攻擊後，正確的憑證仍可登入');
+const parts = okTok.split('.');
+const tampered = parts[0] + '.' + b64(Object.assign(JSON.parse(Buffer.from(parts[1], 'base64url')), { email: 'boss@x.com' })) + '.' + parts[2];
+ok(call({ action: 'bootstrap', token: tampered }).error === 'auth', '竄改內容（改 email）→ 簽章不符 → auth');
+ok(call({ action: 'bootstrap', token: b64({ alg: 'none', kid: 'k1' }) + '.' + parts[1] + '.' }).error === 'auth' &&
+   call({ action: 'bootstrap', token: b64({ alg: 'HS256', kid: 'k1' }) + '.' + parts[1] + '.' + parts[2] }).error === 'auth', 'alg 不是 RS256（none、HS256）→ auth');
+ok(call({ action: 'bootstrap', token: sign({ aud: 'CID.apps.googleusercontent.com', iss: 'evil.example', email: 'eng2@x.com', email_verified: true, exp: NOW / 1000 + 3600 }) }).error === 'auth', '簽發者不是 Google → auth');
+ok(call({ action: 'bootstrap', token: sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: false, exp: NOW / 1000 + 3600 }) }).error === 'auth', 'email 未驗證 → auth');
+ok(call({ action: 'bootstrap', token: sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: true, exp: NOW / 1000 - 10 }) }).error === 'auth', '已過期 → auth');
+// Google 換金鑰：新 kid 第一次出現時重抓一次；亂數 kid 不會一直重抓
+JWKS_KIDS = ['k1', 'k2'];
+const k2Tok = sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'eng2@x.com', email_verified: true, exp: NOW / 1000 + 3500 }, 'k2');
+const jwBefore = jw;
+ok(call({ action: 'bootstrap', token: k2Tok }).ok && jw === jwBefore + 1, 'Google 換新金鑰（新 kid）→ 重抓一次公開金鑰後通過');
+for (let i = 0; i < 50; i++) call({ action: 'bootstrap', token: sign({ aud: 'CID.apps.googleusercontent.com', iss: 'accounts.google.com', email: 'r' + i + '@x.com', email_verified: true, exp: NOW / 1000 + 3600 }, 'rand' + i, forgedKey) });
+ok(jw === jwBefore + 1, '帶亂數 kid 的偽造憑證 50 次 → 10 分鐘內不再重抓公開金鑰');
+ok(ctx.rs256Verify_(ctx.JWT_SELFTEST.signed, ctx.JWT_SELFTEST.sig, ctx.JWT_SELFTEST.jwk) === true && ctx.rs256Verify_(ctx.JWT_SELFTEST.signed + 'x', ctx.JWT_SELFTEST.sig, ctx.JWT_SELFTEST.jwk) === false, 'jwtSelfTest 的固定測試向量：正確為 true、竄改為 false');
+ctx.UrlFetchApp.fetch = jwReal;
 
 // ---------- 13. Fable 第 4 項：未授權者先限流；名額滿訊息正確 ----------
 FakeDate.now = () => NOW + 1500000; cache.clear();
@@ -392,6 +420,17 @@ ok(syncR.ok && sheetsCalls.length === 2 && sheetsCalls.every(x => !x.startsWith(
 ok(main.get(6, 7) === 77 && JSON.stringify(main.d.slice(4, 7).map(r => r.slice(0, 6))) === JSON.stringify(official.slice(4, 7).map(r => r.slice(0, 6))), '同步後主表數值＝正式版');
 const hdrOk = dates.every((d, i) => ctx.dateStr_(main.get(3, 11 + i)) === fmtDate(d, 'Asia/Taipei', 'yyyy-MM-dd'));
 ok(hdrOk, '表頭日期由序號轉回日期，與正式版同一天');
+const offHdr = official[2].slice();
+official[2][6] = '複價'; official[2][5] = '使用數量';
+const mainBefore = JSON.stringify(main.d);
+let syncErr = ''; try { ctx.syncFromOfficial(); } catch (e) { syncErr = String(e.message); }
+ok(/欄位與預期不同/.test(syncErr) && /G 欄是「複價」/.test(syncErr) && JSON.stringify(main.d) === mainBefore, '正式版欄位變動（使用數量與複價對調）→ 停止同步，主表不改');
+official[2] = offHdr;
+main.set(3, 7, '複價');
+cache.clear();
+const bsH = call({ action: 'bootstrap', token: tokE2 });
+ok(bsH.ok && bsH.items.every(it => it[7] == null), '主表 G 欄表頭不是「使用數量」→ bootstrap 不回傳正式版使用數量（不會把複價送到網頁）');
+main.set(3, 7, '使用數量');
 
 // ---------- 16. 正式版 ≥ 50% 自動補進料 ----------
 FakeDate.now = () => NOW + 3000000; cache.clear();

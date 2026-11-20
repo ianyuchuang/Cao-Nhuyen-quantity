@@ -48,6 +48,7 @@ function syncFromOfficial() {
 /**
  * 讀正式版（唯讀）：回傳 { R, C, frozenRows, frozenCols, values }，values 補滿成 R × C。
  * 數值用 UNFORMATTED_VALUE；表頭日期列（第 HEADER_ROWS 列、日期欄起）由序號轉回日期。
+ * 表頭（A～G：層級…單價、數量、複價、使用數量，K 起為日期）不符就丟錯，不寫主表。
  */
 function readOfficial_() {
   var meta = Sheets.Spreadsheets.get(CFG.OFFICIAL_ID,
@@ -70,6 +71,8 @@ function readOfficial_() {
     }
     values.push(row);
   }
+  var prob = R >= CFG.HEADER_ROWS ? officialHeaderProblem_(values[CFG.HEADER_ROWS - 1]) : '表頭列不存在';
+  if (prob) throw new Error('正式版欄位與預期不同，已停止同步（主表未改動）：' + prob);
   return { R: R, C: C, frozenRows: g.frozenRowCount || 0, frozenCols: g.frozenColumnCount || 0, values: values };
 }
 

@@ -30,10 +30,9 @@ var CFG = {
   COL_FIRST_DATE: 11,    // K 起為日期欄
   ACL_TTL: 600,          // 編輯者／共用名單快取 10 分鐘
   PEOPLE_TTL: 30,        // 人員表快取 30 秒（編輯人員表時 onEdit 也會立即清掉）
-  // 向 Google tokeninfo 驗證的全域上限（擋偽造憑證耗光 UrlFetch 每日配額；驗證成功的憑證快取到到期，不重複驗）
-  TOKENINFO_PER_MIN: 60,
-  TOKENINFO_PER_HOUR: 600,
   PENDING_FULL_TTL: 600, // 待核准名額已滿時，同一帳號 10 分鐘內直接回覆、不再搶鎖
+  // 正式版／主表第 HEADER_ROWS 列的表頭：同步與讀「正式版使用數量」前檢查，欄位一變動就停止（避免把複價當成使用數量）
+  OFFICIAL_HEADERS: { 1: '層級', 2: '項目', 3: '單位', 4: '單價', 5: '數量', 6: '複價', 7: '使用數量' },
   OPENING_BY: '系統（期初推估）',
   // 每日同步後：正式版使用數量 ≥ 圖面合計 × AUTO_MAT_RATIO → 視為進料完成，自動補進料到圖面合計（只補不減）
   AUTO_MAT_RATIO: 0.5,
@@ -103,6 +102,16 @@ function safeText_(v, max) {
  */
 function protect_(v) { return typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v; }
 function protectRows_(rows) { return rows.map(function (r) { return r.map(protect_); }); }
+/** 表頭（第 HEADER_ROWS 列的值陣列）是否符合 CFG.OFFICIAL_HEADERS，且日期欄起是日期；不符回傳說明文字 */
+function officialHeaderProblem_(row) {
+  var bad = [];
+  Object.keys(CFG.OFFICIAL_HEADERS).forEach(function (c) {
+    var v = trim_(row[Number(c) - 1]);
+    if (v !== CFG.OFFICIAL_HEADERS[c]) bad.push(colLetter_(Number(c)) + ' 欄是「' + v + '」（應為「' + CFG.OFFICIAL_HEADERS[c] + '」）');
+  });
+  if (!dateStr_(row[CFG.COL_FIRST_DATE - 1])) bad.push(colLetter_(CFG.COL_FIRST_DATE) + ' 欄不是日期');
+  return bad.join('；');
+}
 function num_(v) { var n = Number(v); return isFinite(n) ? n : 0; }
 function round_(x, d) { var k = Math.pow(10, d); return Math.round((x + (x >= 0 ? 1e-12 : -1e-12)) * k) / k; }
 /** 試算表的完成% 欄是百分比格式：存 0～1 的小數；程式內部與 API 一律用 0～100 */

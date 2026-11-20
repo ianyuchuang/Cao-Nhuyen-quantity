@@ -120,11 +120,15 @@ function dailySummary_() {
   var out = {};
   if (n <= 0) return out;
   var v = sh.getRange(CFG.HEADER_ROWS + 1, 1, n, CFG.COL_OPENING).getValues();
+  // H 欄「正式版使用數量」是公式取主表 G 欄；主表欄位不對（G 不是「使用數量」）就不回傳，避免把複價送到網頁
+  var main = ss_().getSheetByName(CFG.SH.MAIN);
+  var mainOk = !!main && trim_(main.getRange(CFG.HEADER_ROWS, CFG.COL_USED).getValue()) === CFG.OFFICIAL_HEADERS[CFG.COL_USED];
+  if (!mainOk) console.warn('主表 G 欄表頭不是「使用數量」，正式版使用數量不回傳');
   v.forEach(function (r) {
     var lv = trim_(r[0]);
     if (!lv || r[4] === '') return; // E 圖面數量空白＝非網站管理的層級
     var f = function (x) { return x === '' || x == null || isNaN(Number(x)) ? null : round_(Number(x), 3); };
-    out[lv] = { web: f(r[6]), official: f(r[7]), opening: f(r[9]) };
+    out[lv] = { web: f(r[6]), official: mainOk ? f(r[7]) : null, opening: f(r[9]) };
   });
   return out;
 }
