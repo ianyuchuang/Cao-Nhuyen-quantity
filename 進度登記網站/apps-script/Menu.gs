@@ -34,7 +34,10 @@ function menuSync() {
     '會以正式版「' + CFG.OFFICIAL_SHEET + '」覆蓋本表「' + CFG.SH.MAIN + '」（正式版只讀取、不會被修改）。\n約需 1～2 分鐘，要繼續嗎？',
     ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
   var r = syncFromOfficial();
-  alert_('同步完成。' + (r.realigned ? '\n正式版的列或日期欄有變動，「網站每日數量」已依層級重排。' : ''));
+  var a = r.autoMat || { added: [] };
+  alert_('同步完成。' + (r.realigned ? '\n正式版的列或日期欄有變動，「網站每日數量」已依層級重排。' : '') +
+    (a.skipped ? '\n未自動補進料：' + a.skipped :
+      a.added.length ? '\n正式版 ≥ 50% 自動補進料：\n' + a.added.map(function (x) { return x.code + ' 補 ' + x.qty + '（正式版 ' + x.ratio + '%）'; }).join('\n') : '\n沒有需要自動補進料的代號。'));
 }
 
 function menuClearLocCache() {
@@ -42,7 +45,7 @@ function menuClearLocCache() {
   toast_('已清除位置快取。');
 }
 
-/** 每天 02:00 從正式版同步；同步後全部重算 */
+/** 每天 02:00 從正式版同步（含正式版 ≥ 50% 自動補進料）；同步後全部重算 */
 function installTriggers() {
   removeTriggers(true);
   ScriptApp.newTrigger('nightlyJob').timeBased().everyDays(1).atHour(2).inTimezone(CFG.TZ).create();

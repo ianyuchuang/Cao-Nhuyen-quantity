@@ -127,6 +127,56 @@ function recalcLevels_(levels) {
   return { levels: done, missing: missing };
 }
 
+/**
+ * 正式版使用數量 ≥ 圖面合計 × 50% → 該代號進料視為完成：在「進料」表補一筆，數量＝圖面合計 − 目前進料累計。
+ * - 在從正式版同步主表之後執行（每日同步與選單「從正式版同步主表」都會跑）；呼叫者需持有指令碼鎖。
+ * - 只補不減：正式版之後降回 50% 以下不扣回；已補滿（進料累計 ≥ 圖面合計）就不再補，所以重跑不會重複。
+ * - 正式版超過圖面也一樣（比例上限視為 100%）。
+ * - 日期＝當天（台北），登記人＝CFG.AUTO_MAT_BY（工程師登記的登記人一律是 email，無法偽造成這個值）。
+ * - 主表 G 欄表頭不是「使用數量」時（正式版欄位變動）整個略過，避免讀錯欄。
+ * 回傳 { added: [{ lv, code, qty, used, total, ratio }], skipped }
+ */
+function autoMaterialFromOfficial_(main) {
+  var hdr = trim_(main.getRange(CFG.HEADER_ROWS, CFG.COL_USED).getValue());
+  if (hdr !== '使用數量') {
+    console.warn('主表 G 欄表頭是「' + hdr + '」不是「使用數量」，略過自動補進料');
+    return { added: [], skipped: '主表 G 欄表頭不是「使用數量」' };
+  }
+  var L = loadLocations_();
+  var n = main.getLastRow() - CFG.HEADER_ROWS;
+  var used = Object.create(null);
+  if (n > 0) main.getRange(CFG.HEADER_ROWS + 1, 1, n, CFG.COL_USED).getValues().forEach(function (r) {
+    var lv = trim_(r[0]);
+    if (lv && !(lv in used)) used[lv] = num_(r[CFG.COL_USED - 1]);
+  });
+  var totals = Object.create(null);
+  L.locs.forEach(function (l) { totals[l.lv] = (totals[l.lv] || 0) + l.q; });
+  var mats = materialSummary_();
+  var day = todayStr_(), now = new Date(), rows = [], added = [];
+  L.items.forEach(function (it) {
+    var total = round_(totals[it.lv] || 0, 4), u = used[it.lv];
+    if (!(total > 0) || u == null) return;
+    var ratio = u / total;
+    if (ratio < CFG.AUTO_MAT_RATIO - 1e-9) return;
+    var have = (mats[it.lv] || { sum: 0 }).sum;
+    var need = round_(total - have, 4);
+    if (need <= 1e-6) return;
+    var pct = round_(ratio * 100, 2);
+    rows.push([it.lv, it.name, it.unit, day, need, CFG.AUTO_MAT_BY, now, Utilities.getUuid(),
+      safeText_('正式版使用數量 ' + round_(u, 3) + ' ÷ 圖面合計 ' + round_(total, 3) + ' = ' + pct + '%（≥ ' + (CFG.AUTO_MAT_RATIO * 100) +
+        '% 視為進料完成），原進料累計 ' + round_(have, 3) + '，補到圖面合計', 300)]);
+    added.push({ lv: it.lv, code: it.code, qty: need, used: round_(u, 3), total: total, ratio: pct });
+  });
+  if (rows.length) {
+    var sh = sheet_(CFG.SH.MAT);
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, MAT_WIDTH).setValues(protectRows_(rows));
+    SpreadsheetApp.flush();
+    recalcLevels_(added.map(function (a) { return a.lv; }));
+  }
+  console.log('自動補進料（正式版 ≥ ' + (CFG.AUTO_MAT_RATIO * 100) + '%）：' + (added.length ? JSON.stringify(added) : '沒有符合的層級'));
+  return { added: added, skipped: '' };
+}
+
 /** 所有網站管理的層級 */
 function managedLevels_() {
   return loadLocations_().items.map(function (it) { return it.lv; });

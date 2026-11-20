@@ -393,4 +393,49 @@ ok(main.get(6, 7) === 77 && JSON.stringify(main.d.slice(4, 7).map(r => r.slice(0
 const hdrOk = dates.every((d, i) => ctx.dateStr_(main.get(3, 11 + i)) === fmtDate(d, 'Asia/Taipei', 'yyyy-MM-dd'));
 ok(hdrOk, '表頭日期由序號轉回日期，與正式版同一天');
 
+// ---------- 16. 正式版 ≥ 50% 自動補進料 ----------
+FakeDate.now = () => NOW + 3000000; cache.clear();
+const lvRow = lv => main.d.findIndex(r => String(r[0]).trim() === lv) + 1;
+const setUsed = (lv, v) => main.set(lvRow(lv), 7, v);
+const autoRows = () => mat.d.filter(r => r[5] === ctx.CFG.AUTO_MAT_BY);
+const matSum = lv => Number((ctx.materialSummary_()[lv] || { sum: 0 }).sum);
+mat.d = mat.d.filter(r => !['A.1', 'A.2', 'A.3'].includes(String(r[0]))); // 測試用：清掉這三個代號的進料
+['A.1', 'A.2', 'A.3'].forEach(lv => setUsed(lv, 0));
+setUsed('A.2', 0.99);
+let am = ctx.autoMaterialFromOfficial_(main);
+ok(am.added.length === 0 && autoRows().length === 0, '正式版 49.5%（未達 50%）→ 不補');
+setUsed('A.2', 1);
+am = ctx.autoMaterialFromOfficial_(main);
+const ar = autoRows();
+ok(am.added.length === 1 && am.added[0].code === 'D1' && am.added[0].qty === 2 && am.added[0].ratio === 50 && ar.length === 1 && ar[0][4] === 2 && matSum('A.2') === 2,
+  '正式版剛好 50% → 自動補進料到圖面合計（D1 補 2）');
+ok(fmtDate(ar[0][3], 'Asia/Taipei', 'yyyy-MM-dd') === '2026-11-20' && /= 50%/.test(ar[0][8]) && /≥ 50%/.test(ar[0][8]), '補的那筆日期＝同步當天、備註寫正式版使用數量與比例');
+am = ctx.autoMaterialFromOfficial_(main);
+ok(am.added.length === 0 && autoRows().length === 1, '重跑不重複補（已補滿）');
+setUsed('A.2', 0);
+am = ctx.autoMaterialFromOfficial_(main);
+ok(am.added.length === 0 && matSum('A.2') === 2, '正式版降回 0 → 不扣回');
+setUsed('A.3', 5);
+am = ctx.autoMaterialFromOfficial_(main);
+ok(am.added.length === 1 && am.added[0].code === 'DW9' && am.added[0].qty === 1 && am.added[0].ratio === 500 && matSum('A.3') === 1, '正式版超過圖面（500%）→ 補到圖面合計，不超過');
+mat.d.push(['A.1', '天花板', 'M2', tw('2026-11-20'), 30, 'eng@x.com', new FakeDate(), 'AUTO-T-0001', '']);
+const realRecalc = ctx.recalcLevels_; let recalced = []; ctx.recalcLevels_ = lv => { recalced = recalced.concat(lv); return realRecalc(lv); };
+setUsed('A.1', 60);
+am = ctx.autoMaterialFromOfficial_(main);
+ok(am.added.length === 1 && am.added[0].qty === 70 && matSum('A.1') === 100 && mat.d.some(r => r[7] === 'AUTO-T-0001' && r[4] === 30), '已有部分進料（30）→ 只補差額 70，工程師的進料不動');
+ctx.recalcLevels_ = realRecalc;
+ok(JSON.stringify(recalced) === JSON.stringify(['A.1']), '補進料後立即重算該代號的每日數量');
+['A.1', 'A.2', 'A.3'].forEach(lv => setUsed(lv, 99));
+mat.d = mat.d.filter(r => r[0] !== 'A.2');
+main.set(3, 7, '複價');
+am = ctx.autoMaterialFromOfficial_(main);
+ok(am.added.length === 0 && /表頭/.test(am.skipped), '主表 G 欄表頭不是「使用數量」（正式版欄位變動）→ 整個略過');
+main.set(3, 7, '使用數量');
+const offA2 = official.findIndex(r => String(r[0]).trim() === 'A.2');
+official[offA2][6] = 2;
+const syncAuto = ctx.syncFromOfficial();
+ok(syncAuto.autoMat && syncAuto.autoMat.added.some(x => x.lv === 'A.2' && x.qty === 2), '從正式版同步主表時一併自動補進料（每日同步與選單同步共用）');
+ok(!ctx.CFG.AUTO_MAT_BY.includes('@'), '自動補的登記人不是 email，工程師登記（登記人一律是驗證過的 email）無法偽造');
+
 console.log('\n全部通過');
+

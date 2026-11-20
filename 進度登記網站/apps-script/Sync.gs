@@ -10,7 +10,8 @@
  * 接著：
  *   1. 主表中網站管理的層級 A～C 標淺藍；
  *   2. 「網站每日數量」若列順序或日期欄與主表不同，依層級重排（J 期初與逐日數量跟著層級走）；
- *   3. 重寫「網站每日數量」E、G、H、I 欄的公式（主表列數改變時範圍跟著調整）。
+ *   3. 重寫「網站每日數量」E、G、H、I 欄的公式（主表列數改變時範圍跟著調整）；
+ *   4. 正式版使用數量 ≥ 圖面合計 50% 的代號自動補進料（autoMaterialFromOfficial_）。
  */
 function syncFromOfficial() {
   var lock = LockService.getScriptLock();
@@ -34,10 +35,11 @@ function syncFromOfficial() {
 
     highlightManaged_(main);
     var moved = realignDaily_(main, snap);
+    var auto = autoMaterialFromOfficial_(main);  // 正式版 ≥ 50% → 自動補進料
     PropertiesService.getScriptProperties().setProperty('LAST_SYNC', new Date().toISOString());
     console.log('同步主表完成：' + R + ' 列 × ' + C + ' 欄，' + Math.round((Date.now() - t0) / 1000) + ' 秒');
     toast_('已從正式版同步主表' + (moved ? '，並重排「網站每日數量」' : '') + '。');
-    return { ok: true, realigned: moved };
+    return { ok: true, realigned: moved, autoMat: auto };
   } finally {
     lock.releaseLock();
   }

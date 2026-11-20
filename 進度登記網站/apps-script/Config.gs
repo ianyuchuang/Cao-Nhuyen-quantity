@@ -35,6 +35,9 @@ var CFG = {
   TOKENINFO_PER_HOUR: 600,
   PENDING_FULL_TTL: 600, // 待核准名額已滿時，同一帳號 10 分鐘內直接回覆、不再搶鎖
   OPENING_BY: '系統（期初推估）',
+  // 每日同步後：正式版使用數量 ≥ 圖面合計 × AUTO_MAT_RATIO → 視為進料完成，自動補進料到圖面合計（只補不減）
+  AUTO_MAT_RATIO: 0.5,
+  AUTO_MAT_BY: '系統（正式版≥50%）',
   OPENING_LEVEL: '期初',
   MANAGED_BG: '#ddebf7', // 主表中網站管理層級的 A～C 淺藍
   // 完成量＝圖面合計 × MAT_WEIGHT × 進料比例 ＋ Σ(位置圖面數量 × (1−MAT_WEIGHT) × 施作完成%)
