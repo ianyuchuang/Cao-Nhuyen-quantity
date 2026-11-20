@@ -10,7 +10,7 @@ var MAX_BODY = 1024 * 1024; // 1 MB
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.action) return json_({ ok: false, error: 'method', message: '請用 POST' });
-  return json_({ ok: true, service: '工項進度登記 API' });
+  return json_({ ok: true, service: '工項進度登記 API', lock: withRateLock_(function (kind) { return kind; }) }); // lock：限流計數用的鎖（document／user／none），部署後確認用
 }
 
 function doPost(e) {
@@ -114,7 +114,8 @@ function submit_(user, req) {
   var goLive = goLive_();
   if (!date) throw apiError_('bad_request', '施工日期格式錯誤');
   if (date > today) throw apiError_('bad_request', '施工日期不能晚於今天');
-  if (goLive && date < goLive) throw apiError_('bad_request', '施工日期不能早於上線日 ' + goLive);
+  if (!goLive) throw apiError_('config', '管理者尚未在「設定」表填「上線日」（或格式錯誤），暫時不能登記');
+  if (date < goLive) throw apiError_('bad_request', '施工日期不能早於上線日 ' + goLive);
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) throw apiError_('busy', '目前登記的人較多，請稍後再試（資料已保留在手機，會自動重送）');
@@ -130,9 +131,9 @@ function submit_(user, req) {
 
     list.forEach(function (it) {
       if (!it || typeof it !== 'object') return;
-      var uuid = trim_(it.uuid);
+      var uuid = uuidOf_(it.uuid);
       var loc = typeof it.id === 'string' ? L.byId[it.id] : null;
-      if (!/^[A-Za-z0-9-]{8,64}$/.test(uuid)) { rejected.push({ uuid: uuid.slice(0, 64), id: String(it.id).slice(0, 200), why: 'UUID 格式錯誤' }); return; }
+      if (!uuid) { rejected.push({ uuid: trim_(it.uuid).slice(0, 64), id: String(it.id).slice(0, 200), why: 'UUID 格式錯誤' }); return; }
       if (seen[uuid]) { dup.push(uuid); if (loc) touched[loc.id] = 1; return; }
       if (!loc) { rejected.push({ uuid: uuid, id: String(it.id).slice(0, 200), why: '找不到這個位置（可能已改版）' }); return; }
       var c = cur.byId[loc.id] || { p: '', f: '', s: '', d: '', by: '' };
@@ -202,10 +203,11 @@ function material_(user, req) {
   if (!date) throw apiError_('bad_request', '日期格式錯誤');
   if (date > todayStr_()) throw apiError_('bad_request', '日期不能晚於今天');
   var goLive = goLive_();
-  if (goLive && date < goLive) throw apiError_('bad_request', '日期不能早於上線日 ' + goLive);
+  if (!goLive) throw apiError_('config', '管理者尚未在「設定」表填「上線日」（或格式錯誤），暫時不能登記');
+  if (date < goLive) throw apiError_('bad_request', '日期不能早於上線日 ' + goLive);
   if (!isFinite(qty) || qty === 0) throw apiError_('bad_request', '請填到貨數量');
-  var uuid = trim_(req.uuid);
-  if (!/^[A-Za-z0-9-]{8,64}$/.test(uuid)) throw apiError_('bad_request', 'UUID 格式錯誤');
+  var uuid = uuidOf_(req.uuid);
+  if (!uuid) throw apiError_('bad_request', 'UUID 格式錯誤');
   var L = loadLocations_();
   var lvIn = typeof req.lv === 'string' ? trim_(req.lv) : '';
   var it = lvIn ? L.itemByLv[lvIn] : null;
@@ -215,10 +217,10 @@ function material_(user, req) {
   if (Math.abs(qty) > maxQ) throw apiError_('bad_request', '單筆進料數量不能超過 ' + maxQ + '（圖面合計 ' + round_(total, 3) + ' 的 ' + MAT_MAX_RATIO + ' 倍）');
   var note = safeText_(req.note);
   if (qty < 0 && !note) throw apiError_('bad_request', '進料數量為負（退料或更正）時，請在備註寫原因');
-  rateLimitMat_(user.email);
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) throw apiError_('busy', '目前登記的人較多，請稍後再試');
   try {
+    rateLimitMat_(user.email); // 在鎖內計數：並行送出也不會超過上限
     var sh = sheet_(CFG.SH.MAT);
     var seen = uuidSet_(sh, MAT_COL.UUID);
     if (!seen[uuid]) {
@@ -235,7 +237,7 @@ function material_(user, req) {
   }
 }
 
-/** 進料登記另有較低的每分鐘上限（每筆都會在鎖內重算該代號） */
+/** 進料登記另有較低的每分鐘上限（每筆都會在鎖內重算該代號）；呼叫端已持有 script lock，計數是原子的 */
 function rateLimitMat_(email) {
   var cache = CacheService.getScriptCache();
   var key = 'rlm_' + sha_(email) + '_' + Math.floor(Date.now() / 60000);

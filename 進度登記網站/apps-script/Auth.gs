@@ -127,13 +127,31 @@ function jwtSelfTest() {
 /** jwtSelfTest 用的固定測試向量：一次性產生的 2048 位元測試金鑰（私鑰已丟棄），與 Google 無關 */
 var JWT_SELFTEST = {"signed":"eyJhbGciOiJSUzI1NiIsImtpZCI6InNlbGZ0ZXN0IiwidHlwIjoiSldUIn0.eyJpc3MiOiJzZWxmdGVzdCIsImF1ZCI6InNlbGZ0ZXN0IiwiZW1haWwiOiJzZWxmdGVzdEBleGFtcGxlLmludmFsaWQifQ","sig":"2W--BN1b1t1L2cGubP6R1oBPIal6H91uiK6bKFXPfmtwwTZaOotz68Jw0NVwPHX3J8fx8Ixuj-H7_u_uwRq-ick8O4R0wZUGO6URFruCNmIV3pKUEa0Vm1VIviXtOGTZujbXtl_kxPt2rnZfyNXWJHexxbz7jUsINWNC7RD5S2jldl6ux8yDTE3I_MXNlxPdYRNHfQqYdEHIsSv2pS7COssUzsMN1iNW9mwwcvoF0rS2hFQiHnyCj_8pIOSRF31DpZgm_vyrwzV7vSH2NT-7mTVDFQK0tq5tu-dYNMpKqxPSRYkTBSyql8txZ9sUHTg7lBkclewcL1P85Tgyx-SRNg","jwk":{"n":"5LEhOvNOMXIxnH9NxGIXiUeVINJtSfjmegwj2HIGwvNYvX4OPZ-sXjLT6_Ke73uBOgI4YRYYAu-c2cAVA5sbblMgQBqfY75YtsBSm-dCC5V357V-AqfVsanOqxG_DSdleQPbHEw22d-gqjijKQW9pNbfT1HHFB9Ko6g8IwsocxTa3bgxvho20QzKEB4CwEpY_OXRzJwHxn1p0vdQmpDDt8cEFzLPB6yxoIXQQIDIDPTjO1pE7GD4xk-TQKLgvR7_jCnkJYpB-vLTAs1K8EhxinKyKC3Ee3YbHHBrNk_mRh6DxCvMGEwHB7FjtpjfT0k-GdY1kMXtg3-xCY7yzAMukw","e":"AQAB"}};
 
-/** 每個帳號每分鐘請求上限 */
+/**
+ * 每個帳號每分鐘請求上限。計數的「讀＋寫」包在鎖裡，並行請求也不會超過上限。
+ * 用的鎖：document lock → user lock（網頁應用程式裡 document lock 可能是 null），都不能用就照舊計數（盡力而為）。
+ * 這兩種鎖都不是登記用的 script lock，只鎖幾毫秒，不會卡住登記。
+ */
 function rateLimit_(email) {
   var cache = CacheService.getScriptCache();
   var key = 'rl_' + sha_(email) + '_' + Math.floor(Date.now() / 60000);
-  var n = Number(cache.get(key)) || 0;
-  if (n >= RATE_PER_MIN) throw apiError_('busy', '請求太頻繁，請稍後再試');
-  cache.put(key, String(n + 1), 120);
+  withRateLock_(function () {
+    var n = Number(cache.get(key)) || 0;
+    if (n >= RATE_PER_MIN) throw apiError_('busy', '請求太頻繁，請稍後再試');
+    cache.put(key, String(n + 1), 120);
+  });
+}
+
+/** 在限流用的鎖內執行 fn(鎖的種類)；搶不到鎖回 busy；兩種鎖都不能用時不加鎖直接執行（kind＝'none'） */
+function withRateLock_(fn) {
+  var kinds = [['document', function () { return LockService.getDocumentLock(); }], ['user', function () { return LockService.getUserLock(); }]];
+  for (var i = 0; i < kinds.length; i++) {
+    var lock = null, got = false;
+    try { lock = kinds[i][1](); if (!lock) continue; got = lock.tryLock(5000); } catch (e) { continue; }
+    if (!got) throw apiError_('busy', '目前使用的人較多，請稍後再試');
+    try { return fn(kinds[i][0]); } finally { lock.releaseLock(); }
+  }
+  return fn('none');
 }
 
 function sha_(s) {
@@ -273,13 +291,14 @@ function registerPending_(user) {
     if (!trim_(sh.getRange(1, oc).getValue())) sh.getRange(1, oc).setValue('核准');
     var n = sh.getLastRow() - 1;
     var rows = n > 0 ? sh.getRange(2, 1, n, oc).getValues() : [];
-    var pending = 0;
+    var pending = 0, blankRow = 0;
     for (var i = 0; i < rows.length; i++) {
+      if (!blankRow && !rows[i].slice(0, oc - 1).some(function (x) { return trim_(x); })) blankRow = i + 2; // 預先拉好的空白列（只有勾選框）
       if (trim_(rows[i][0]).toLowerCase() === user.email) return 'pending';
-      if (rows[i][oc - 1] !== true) pending++;
+      if (trim_(rows[i][0]) && rows[i][oc - 1] !== true) pending++; // 只算有帳號的列（預先拉好的空白勾選框不算）
     }
     if (pending >= MAX_PENDING) { cache.put(fullKey, '1', CFG.PENDING_FULL_TTL); return 'full'; }
-    var r = sh.getLastRow() + 1;
+    var r = blankRow || sh.getLastRow() + 1; // 有預先拉好的空白列就填進去，不接在最後面
     var row = [safeText_(user.email, 120), safeText_(user.gname, 60), '網站登入自動加入 ' + todayStr_()];
     while (row.length < oc - 1) row.push('');
     row.push(false);

@@ -158,7 +158,7 @@ function realignDaily_(main, snap) {
     }
     // 表頭日期
     daily.getRange(CFG.HEADER_ROWS, CFG.COL_FIRST_DATE, 1, dailyCols - CFG.COL_FIRST_DATE + 1).clearContent();
-    daily.getRange(CFG.HEADER_ROWS, CFG.COL_FIRST_DATE, 1, mainDatesRaw.length).setValues([mainDatesRaw])
+    daily.getRange(CFG.HEADER_ROWS, CFG.COL_FIRST_DATE, 1, mainDatesRaw.length).setValues(protectRows_([mainDatesRaw]))
       .setNumberFormat('m/d');
     // 層級、項目、單位
     daily.getRange(CFG.HEADER_ROWS + 1, 1, mainA.length, 3).setValues(protectRows_(mainA));
@@ -174,7 +174,7 @@ function realignDaily_(main, snap) {
       }
       return row;
     });
-    daily.getRange(CFG.HEADER_ROWS + 1, CFG.COL_OPENING, block.length, width).setValues(block);
+    daily.getRange(CFG.HEADER_ROWS + 1, CFG.COL_OPENING, block.length, width).setValues(protectRows_(block)); // 讀回的值要再保護
   }
   writeDailyFormulas_(daily, rows, cols);
   return !same;

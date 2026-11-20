@@ -35,7 +35,7 @@ const FORMULAS = [];
 function sheetParse(sh, r, c, x) {
   if (typeof x !== 'string') return x;
   if (x.startsWith("'")) return x.slice(1);
-  if (/^[=+\-@]/.test(x) && !isFinite(Number(x))) { FORMULAS.push(sh.name + '!R' + r + 'C' + c + ' ' + x); return '#公式#' + x; }
+  if (/^[=+\-@＝＋－＠]/.test(x) && !isFinite(Number(x))) { FORMULAS.push(sh.name + '!R' + r + 'C' + c + ' ' + x); return '#公式#' + x; }
   return x;
 }
 class Range {
@@ -131,7 +131,7 @@ const ctx = {
   SpreadsheetApp: { getActiveSpreadsheet: () => SS, openById: () => { throw new Error('測試中不應開啟正式版'); }, flush() {}, getUi() { throw new Error('no ui'); }, CopyPasteType: { PASTE_NORMAL: 1 } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: () => null, setProperty() {} }) },
   CacheService: CacheMock,
-  LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
+  LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }), getDocumentLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }), getUserLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
   Utilities: { formatDate: fmtDate, base64DecodeWebSafe: x => Array.from(Buffer.from(x.replace(/=+$/,''), 'base64url')), newBlob: a => ({ getDataAsString: () => Buffer.from(a).toString('utf8') }), getUuid: () => 'u-' + Math.random().toString(36).slice(2), computeDigest: (a, s) => Array.from(require('crypto').createHash('sha256').update(s).digest()).map(b => b > 127 ? b - 256 : b),
     DigestAlgorithm: { SHA_256: 1 }, Charset: { UTF_8: 1 } },
   UrlFetchApp: { fetch: url => {
@@ -144,7 +144,18 @@ const ctx = {
 };
 vm.createContext(ctx);
 fs.readdirSync(DIR).filter(f => f.endsWith('.gs')).forEach(f => vm.runInContext(fs.readFileSync(path.join(DIR, f), 'utf8'), ctx, { filename: f }));
-const call = req => ctx.handle_(req);
+// 測試裡的 uuid 用好讀的名稱（TEST-U1-0000），送出前轉成 8-4-4-4-12 的 UUID（伺服器只收正式 UUID 格式）
+const U = name => { const h = nodeCrypto.createHash('sha256').update(String(name)).digest('hex'); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };
+const tu = v => (typeof v === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(v) && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) ? U(v) : v;
+const callRaw = req => ctx.handle_(req);
+const call = req => {
+  if (req && typeof req === 'object') {
+    req = Object.assign({}, req);
+    if ('uuid' in req) req.uuid = tu(req.uuid);
+    if (Array.isArray(req.items)) req.items = req.items.map(it => it && typeof it === 'object' && 'uuid' in it ? Object.assign({}, it, { uuid: tu(it.uuid) }) : it);
+  }
+  return ctx.handle_(req);
+};
 const dcol = ds => 11 + dates.findIndex(d => fmtDate(d, 'Asia/Taipei', 'yyyy-MM-dd') === ds);
 const drow = lv => daily.d.findIndex(r => String(r[0]).trim() === lv) + 1;
 const dval = (lv, ds) => daily.get(drow(lv), dcol(ds));
@@ -319,8 +330,8 @@ ctx.setOpening_(GOLIVE);
 ok(FORMULAS.length === 0, '重設期初（刪舊期初列）後沒有任何儲存格變成公式');
 ctx.rebuildCurrent_();
 ok(FORMULAS.length === 0, '從進度紀錄重建目前進度後沒有任何儲存格變成公式');
-const injLog = log.d.find(x => x[14] === 'INJ-00010');
-const injMat = mat.d.find(x => x[7] === 'INJ-00011');
+const injLog = log.d.find(x => x[14] === U('INJ-00010'));
+const injMat = mat.d.find(x => x[7] === U('INJ-00011'));
 const injCur = cur.d.find(x => x[5] === 'A.1|1F|102');
 ok(injLog && injLog[15] === '=TEXTJOIN(",",1,施工!D4:F9)' && injLog[16] === '@x', '進度紀錄的原因／備註仍是原文字');
 ok(injMat && injMat[8] === '=1+2', '進料備註仍是原文字');
@@ -475,6 +486,78 @@ official[offA2][6] = 2;
 const syncAuto = ctx.syncFromOfficial();
 ok(syncAuto.autoMat && syncAuto.autoMat.added.some(x => x.lv === 'A.2' && x.qty === 2), '從正式版同步主表時一併自動補進料（每日同步與選單同步共用）');
 ok(!ctx.CFG.AUTO_MAT_BY.includes('@'), '自動補的登記人不是 email，工程師登記（登記人一律是驗證過的 email）無法偽造');
+
+// ---------- 17. 第三次審查低度項目 ----------
+FakeDate.now = () => NOW + 3000000; cache.clear(); FORMULAS.length = 0;
+// 第 6 項：UUID 只收正式格式，大小寫視為同一筆
+ok(callRaw({ action: 'submit', token: T.tokE, date: '2026-11-20', items: [{ uuid: '00000001', id: 'A.1|1F|101', p: 10 }] }).rejected.length === 1 &&
+   callRaw({ action: 'submit', token: T.tokE, date: '2026-11-20', items: [{ uuid: '2026-11-19', id: 'A.1|1F|101', p: 10 }] }).rejected.length === 1,
+   '會被試算表轉成數字或日期的 UUID（00000001、2026-11-19）→ rejected');
+ok(callRaw({ action: 'material', token: tokE2, uuid: 'ABCDEFGH-1234', lv: 'A.2', date: '2026-11-20', qty: 0.1 }).error === 'bad_request', '進料 UUID 不是 8-4-4-4-12 → bad_request');
+const upU = U('LOW-CASE-1').toUpperCase();
+const r17a = callRaw({ action: 'submit', token: T.tokE, date: '2026-11-20', force: true, items: [{ uuid: upU, id: 'A.1|1F|101', p: 30 }] });
+const r17b = callRaw({ action: 'submit', token: T.tokE, date: '2026-11-20', force: true, items: [{ uuid: upU.toLowerCase(), id: 'A.1|1F|101', p: 30 }] });
+ok(r17a.saved.length === 1 && r17b.dup.length === 1 && r17b.saved.length === 0, '同一個 UUID 大寫、小寫送兩次 → 第二次判定重複（存小寫）');
+// 第 5 項：全形 ＝＋－＠
+ok(ctx.protect_('＝1+1') === "'＝1+1" && ctx.protect_('＋SUM(A1)') === "'＋SUM(A1)" && ctx.protect_('－1') === "'－1" && ctx.protect_('＠x') === "'＠x" && ctx.safeText_('＝IMPORTXML("x")') === "'＝IMPORTXML(\"x\")",
+   'protect_／safeText_：全形 ＝＋－＠ 開頭也加 \'');
+r = call({ action: 'submit', token: T.tokE, date: '2026-11-20', reason: '＝IMPORTXML("http://x","//a")', items: [{ uuid: 'FW-000001', id: 'A.1|1F|101', p: 20, old: { p: 30 }, note: '＋SUM(A1)' }] });
+ok(r.saved.length === 1 && FORMULAS.length === 0 && log.d.some(x => x[15] === '＝IMPORTXML("http://x","//a")' && x[16] === '＋SUM(A1)'), '原因／備註以全形 ＝＋ 開頭時存成文字');
+// 第 4 項：同步重排「讀出再寫回」也保護
+const dailySave = daily.d.map(x => x.slice()), dailyFSave = Object.assign({}, daily.f), mainSave = main.d.map(x => x.slice());
+const snap17 = ctx.snapshotDaily_();
+snap17.byLv['A.1'].J = '=HYPERLINK("http://evil")';
+snap17.byLv['A.1'].d['2026-11-20'] = '@evil';
+snap17.order = snap17.order.slice().reverse(); // 順序不同 → 強制重排
+const lastDateCol = 10 + dates.length;
+main.set(3, lastDateCol, '=TODAY()');
+ctx.realignDaily_(main, snap17);
+ok(FORMULAS.length === 0 && daily.get(drow('A.1'), 10) === '=HYPERLINK("http://evil")' && dval('A.1', '2026-11-20') === '@evil' && daily.get(3, lastDateCol) === '=TODAY()',
+   '同步重排時，讀回的期初／逐日值與表頭日期以 = 或 @ 開頭也存成文字，不變公式');
+daily.d = dailySave; daily.f = dailyFSave; main.d = mainSave;
+// 第 7 項：預先拉好的空白勾選框不算待核准
+const saveP7 = people.d.map(x => x.slice());
+for (let i = 0; i < 250; i++) people.d.push(['', '', '', false]);
+cache.clear();
+const r7 = call({ action: 'bootstrap', token: T.tokZ });
+ok(r7.error === 'forbidden' && /已送出使用申請/.test(r7.message) && people.d.findIndex(x => x[0] === 'nobody@x.com') === saveP7.length && people.d.length === saveP7.length + 250,
+   '人員表預先拉了 250 列空白勾選框 → 仍可自動加入（空白列不算待核准名額），而且填進第一個空白列');
+people.d = saveP7; cache.clear();
+// 第 3 項：限流計數在鎖內
+const realDoc = ctx.LockService.getDocumentLock;
+let docLocks = 0; ctx.LockService.getDocumentLock = () => { docLocks++; return realDoc(); };
+call({ action: 'bootstrap', token: T.tokE });
+ok(docLocks === 1, '每個請求的限流計數都在 document lock 內（讀＋寫不會被並行請求插隊）');
+ctx.LockService.getDocumentLock = () => ({ tryLock: () => false, waitLock() {}, releaseLock() {} });
+ok(call({ action: 'bootstrap', token: T.tokE }).error === 'busy', '限流計數搶不到鎖 → busy');
+const realUser = ctx.LockService.getUserLock;
+let userLocks = 0; ctx.LockService.getDocumentLock = () => null; ctx.LockService.getUserLock = () => { userLocks++; return realUser(); };
+ok(call({ action: 'bootstrap', token: T.tokE }).ok && userLocks === 1 && JSON.parse(ctx.doGet({}).s).lock === 'user', '網頁應用程式裡 document lock 是 null → 改用 user lock，健康檢查回報 lock＝user');
+ctx.LockService.getUserLock = () => { throw new Error('不支援'); };
+ok(call({ action: 'bootstrap', token: T.tokE }).ok && JSON.parse(ctx.doGet({}).s).lock === 'none', '兩種鎖都不能用 → 照舊計數，網站不會因此停擺（健康檢查回報 lock＝none）');
+ctx.LockService.getDocumentLock = realDoc; ctx.LockService.getUserLock = realUser;
+ok(JSON.parse(ctx.doGet({}).s).lock === 'document', '健康檢查回報 lock＝document');
+cache.clear();
+const realScript = ctx.LockService.getScriptLock;
+ctx.LockService.getScriptLock = () => ({ tryLock: () => false, waitLock() {}, releaseLock() {} });
+for (let i = 0; i < 15; i++) mcall({ uuid: 'RL-' + String(i).padStart(6, '0'), lv: 'A.2', qty: 0.1 });
+ctx.LockService.getScriptLock = realScript;
+ok(mcall({ uuid: 'RL-999999', lv: 'A.2', qty: 0.1 }).ok, '進料搶不到登記鎖的請求不佔每分鐘 10 筆額度（計數在鎖內）');
+// 第 10 項：上線日空白 → 不能登記
+const glRow = set.d.findIndex(x => x[0] === '上線日');
+const glSave = set.d[glRow][1];
+set.d[glRow][1] = ''; cache.clear();
+const r10a = call({ action: 'submit', token: T.tokE, date: '2000-01-01', items: [{ uuid: 'GL-0000001', id: 'A.1|1F|101', p: 5 }] });
+const r10b = mcall({ uuid: 'GL-0000002', lv: 'A.2', qty: 0.1, date: '2000-01-01' });
+ok(r10a.error === 'config' && /上線日/.test(r10a.message) && r10b.error === 'config', '「設定」表上線日空白 → 進度與進料都拒絕（不會變成可補登任何過去日期）');
+set.d[glRow][1] = 'abc'; cache.clear();
+ok(call({ action: 'submit', token: T.tokE, date: '2026-11-20', items: [{ uuid: 'GL-0000003', id: 'A.1|1F|101', p: 5 }] }).error === 'config', '上線日格式錯誤 → 拒絕');
+set.d[glRow][1] = glSave; cache.clear();
+ok(call({ action: 'submit', token: T.tokE, date: '2026-11-20', force: true, reason: '測試', items: [{ uuid: 'GL-0000004', id: 'A.1|1F|101', p: 5, old: { p: 20 } }] }).saved.length === 1, '上線日恢復後可正常登記');
+// 第 8 項：驗證失敗不寫快取
+const keysBefore = cache.size;
+for (let i = 0; i < 20; i++) call({ action: 'bootstrap', token: 'x.' + i + '.y' });
+ok(cache.size === keysBefore, '格式錯誤的憑證不寫任何快取（未登入者無法大量寫入快取）');
 
 console.log('\n全部通過');
 

@@ -90,17 +90,24 @@ function apiError_(code, message) {
   return e;
 }
 function trim_(v) { return String(v == null ? '' : v).replace(/^\s+|\s+$/g, ''); }
-/** 使用者輸入的文字：限制長度，開頭是 = + - @ 時加 ' 讓試算表當文字（防公式注入） */
+/** 公式開頭字元：半形 = + - @ 與全形 ＝＋－＠（全形也擋，避免試算表把它當公式） */
+var FORMULA_START = /^[=+\-@＝＋－＠]/;
+/** 使用者輸入的文字：限制長度，開頭是公式字元時加 ' 讓試算表當文字（防公式注入） */
 function safeText_(v, max) {
   var s = trim_(v).replace(/[\u0000-\u001f]/g, ' ').slice(0, max || 200);
-  return /^[=+\-@]/.test(s) ? "'" + s : s;
+  return FORMULA_START.test(s) ? "'" + s : s;
 }
 /**
- * 寫入試算表前的保護：開頭是 = + - @ 的字串前面加 '，讓試算表一律當文字。
+ * 寫入試算表前的保護：開頭是 = + - @（含全形 ＝＋－＠）的字串前面加 '，讓試算表一律當文字。
  * 試算表讀回時會吃掉這個 '，所以「讀出再寫回」的地方都要再套一次（否則文字會變成公式）。
  * 已經以 ' 開頭的字串不再加。
  */
-function protect_(v) { return typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v; }
+function protect_(v) { return typeof v === 'string' && FORMULA_START.test(v) ? "'" + v : v; }
+/** 前端產生的 UUID（crypto.randomUUID）：8-4-4-4-12 十六進位，轉小寫；格式不符回傳 ''（避免寫進試算表被轉成數字或日期，去重失效） */
+function uuidOf_(v) {
+  var s = trim_(v).toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s) ? s : '';
+}
 function protectRows_(rows) { return rows.map(function (r) { return r.map(protect_); }); }
 /** 表頭（第 HEADER_ROWS 列的值陣列）是否符合 CFG.OFFICIAL_HEADERS，且日期欄起是日期；不符回傳說明文字 */
 function officialHeaderProblem_(row) {

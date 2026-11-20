@@ -24,4 +24,31 @@ ok(r.key === '天花板|2F|201' && r.rid === '201' && r.nm === '辦公室' && r.
 
 r = roomOf({ fl: '代號層', rid: 'C3梯背', nm: 'x', kind: '不分樓層', room: '' }, { cat: '油漆', code: 'C3梯背', short: '' });
 ok(r.key === '油漆|代號層|C3梯背' && r.nm === '不分樓層', '沒有房間ID 時以「工項|樓層|房號」為鍵，不分樓層顯示「不分樓層」');
+// ---------- 離線佇列讀回檢查（web/outbox.js） ----------
+const { cleanOutbox } = require('../web/outbox.js');
+const goodSubmit = { type: 'submit', created: 1, prev: [['A.1|1F|101', null], ['A.1|1F|102', { p: 50, f: '', s: '', d: '2026-11-19', by: 'x' }]],
+  payload: { date: '2026-11-20', level: '房間', label: '101', reason: '', force: false, items: [{ uuid: 'a', id: 'A.1|1F|101', p: 80, old: { p: 0 } }] } };
+const goodMat = { type: 'material', created: 2, payload: { uuid: 'b', lv: 'A.1', date: '2026-11-20', qty: 3.5, note: '' } };
+let ob = cleanOutbox(JSON.stringify([goodSubmit, goodMat]));
+ok(ob.list.length === 2 && ob.dropped === 0, '正常的離線佇列（登記＋進料）全部保留');
+ok(cleanOutbox(null).list.length === 0 && cleanOutbox(null).dropped === 0, '沒有離線資料 → 空佇列');
+ob = cleanOutbox('{"type":"submit"}');
+ok(ob.list.length === 0 && ob.dropped === 1, '佇列被改成非陣列 → 丟掉，不會讓畫面卡住');
+ob = cleanOutbox('not json');
+ok(ob.list.length === 0 && ob.dropped === 1, '佇列不是 JSON → 丟掉');
+ob = cleanOutbox(JSON.stringify([goodSubmit, null, 5, { type: 'submit', payload: { date: '2026-11-20', items: 'x' } },
+  { type: 'material', payload: { uuid: 'c', lv: 'A.1', date: '2026-11-20', qty: '3' } },
+  Object.assign({}, goodSubmit, { prev: [{ id: 'x' }] }), { type: 'evil', payload: {} }, goodMat]));
+ok(ob.list.length === 2 && ob.dropped === 6, '形狀不對的批次（null、數字、items 不是陣列、qty 是字串、prev 不是陣列對、未知類型）逐批丟掉，正常的保留');
+
+// ---------- CSP 只允許連到本部署 ----------
+const fs = require('fs'), path = require('path');
+const html = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8');
+const cfgSrc = fs.readFileSync(path.join(__dirname, '../web/config.js'), 'utf8');
+const apiUrl = /API_URL:\s*'([^']+)'/.exec(cfgSrc)[1];
+const connect = /connect-src ([^;]+)/.exec(html)[1].split(/\s+/);
+const gs = connect.filter(x => x.startsWith('https://script.google.com'));
+ok(gs.length === 1 && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/$/.test(gs[0]) && apiUrl.startsWith(gs[0]), 'CSP connect-src 的 script.google.com 縮到 config.js 這個部署的路徑（換部署要一起改）');
+ok(/<script src="outbox\.js"><\/script>\s*<script src="app\.js">/.test(html), 'index.html 在 app.js 之前載入 outbox.js');
+
 console.log('\n全部通過');

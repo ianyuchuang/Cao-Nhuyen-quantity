@@ -29,9 +29,9 @@
 | 項目 | 值 |
 |---|---|
 | Apps Script 專案 | 「工項進度登記 API」（綁定試算表「工項進度登記」），已授權 |
-| 網頁應用程式網址 | `https://script.google.com/macros/s/AKfycbza7iiFZwQPQ-QNu0yfyrTaBKZ7gELe5C3D1SIZqlsB5YN_3pB7XxjwXeB9avf10Xwfqg/exec`（第 14 版，執行身分：擁有者，存取：所有人。第 2 版起完成% 在試算表存 0～1 小數；第 3 版起「位置」增刪列後快取立即失效；第 4 版起人員表自動填入＋待核准、可從進度紀錄重建目前進度；第 5 版起同步只寫數值；第 6～7 版起進料以 50% 計入完成量；第 8 版起人員表「核准」改勾選框、勾選立即生效；第 9 版起人員表拿掉「負責工項」、修改紀錄所有人都看得到；第 10 版修 Fable 第二次審查：讀出再寫回的文字不再變公式、Google 驗證次數上限、未授權者先限流；第 11～12 版權限縮小為「本試算表可寫＋其他試算表唯讀」（正式版由 Google 保證唯讀）、同步改用 Sheets API 唯讀讀取、進料登記加檢查；第 13 版起每日同步時正式版 ≥ 50% 自動補進料；第 14 版修 Fable 第三次審查中度 2 項：登入改在本機驗 RS256 簽章、正式版欄位檢查） |
+| 網頁應用程式網址 | `https://script.google.com/macros/s/AKfycbza7iiFZwQPQ-QNu0yfyrTaBKZ7gELe5C3D1SIZqlsB5YN_3pB7XxjwXeB9avf10Xwfqg/exec`（第 16 版，執行身分：擁有者，存取：所有人。第 2 版起完成% 在試算表存 0～1 小數；第 3 版起「位置」增刪列後快取立即失效；第 4 版起人員表自動填入＋待核准、可從進度紀錄重建目前進度；第 5 版起同步只寫數值；第 6～7 版起進料以 50% 計入完成量；第 8 版起人員表「核准」改勾選框、勾選立即生效；第 9 版起人員表拿掉「負責工項」、修改紀錄所有人都看得到；第 10 版修 Fable 第二次審查：讀出再寫回的文字不再變公式、Google 驗證次數上限、未授權者先限流；第 11～12 版權限縮小為「本試算表可寫＋其他試算表唯讀」（正式版由 Google 保證唯讀）、同步改用 Sheets API 唯讀讀取、進料登記加檢查；第 13 版起每日同步時正式版 ≥ 50% 自動補進料；第 14 版修 Fable 第三次審查中度 2 項：登入改在本機驗 RS256 簽章、正式版欄位檢查；第 15～16 版修第三次審查低度項目：UUID 格式、全形公式字元、上線日必填、限流在鎖內） |
 | Google Cloud 專案 | `progress-register`（Progress Register），OAuth 同意畫面已發布（外部、正式版） |
-| OAuth 用戶端 ID | `902248037106-cjn6lprnhovn2lncu3j3e8orgu7d6k6p.apps.googleusercontent.com`，來源：`https://ianyuchuang.github.io`、`http://localhost:8765` |
+| OAuth 用戶端 ID | `902248037106-cjn6lprnhovn2lncu3j3e8orgu7d6k6p.apps.googleusercontent.com`，來源：只有 `https://ianyuchuang.github.io`（2026-11-20 移除 `http://localhost:8765`，第三次審查第 9 項；要在本機測真實登入請另開一個開發用用戶端 ID，不要加回正式用戶端） |
 | 「設定」表 | 網站網址、OAuth 用戶端 ID、權限來源＝人員表、上線日＝2026-11-19 已填 |
 | 期初 | 2026-11-19 依「進料 50%＋施作 50%」重設（188 層級、2,024 位置、進料期初 150 筆）；上線前使用數量超過圖面的 7 個代號期初總%以 100% 計：F1、F5、C15、W8、外牆石材、M3、M3泛水；貼面磚 17 個代號與 A梯 a/b 型、B梯 c/d 型欄杆進料期初＝100% |
 | 每日同步觸發 | 2026-11-19 已安裝：每天 02:00（台北）執行 `nightlyJob`＝從正式版同步主表＋全部重算；觸發器用「上端」（最新儲存的程式碼） |
@@ -40,7 +40,7 @@
 **更新網頁**：改完 `web/` 後，在 `D:\分層數量` 執行下列指令，把 `web/` 打包成新的 `gh-pages` commit 推上去（不會切換分支、不動工作資料夾）：
 
 ```bash
-git fetch origin gh-pages; T=$(mktemp); for f in index.html app.js rooms.js style.css config.js demo.js privacy.html; do printf '100644 blob %s\t%s\n' "$(git hash-object -w "進度登記網站/web/$f")" "$f" >> "$T"; done; printf '100644 blob %s\t.nojekyll\n' "$(git hash-object -w --stdin </dev/null)" >> "$T"; C=$(echo "更新進度登記網站" | git commit-tree "$(git mktree < "$T")" -p origin/gh-pages); git push origin "$C:refs/heads/gh-pages"
+git fetch origin gh-pages; T=$(mktemp); for f in index.html app.js rooms.js outbox.js style.css config.js demo.js privacy.html; do printf '100644 blob %s\t%s\n' "$(git hash-object -w "進度登記網站/web/$f")" "$f" >> "$T"; done; printf '100644 blob %s\t.nojekyll\n' "$(git hash-object -w --stdin </dev/null)" >> "$T"; C=$(echo "更新進度登記網站" | git commit-tree "$(git mktree < "$T")" -p origin/gh-pages); git push origin "$C:refs/heads/gh-pages"
 ```
 
 ---
@@ -57,7 +57,7 @@ git fetch origin gh-pages; T=$(mktemp); for f in index.html app.js rooms.js styl
    - 「目標對象」頁把發布狀態改為**正式版（發布應用程式）**。只用登入的基本資料（email、名稱），**不需要 Google 審核**；若維持「測試」，只有加進測試使用者名單的帳號能登入。
 3. 「用戶端」（或「憑證」）→「建立用戶端」→ 類型選**網頁應用程式**：
    - 名稱：進度登記網站。
-   - **已授權的 JavaScript 來源**：填 GitHub Pages 網址的網域，例如 `https://你的帳號.github.io`（只要網域，不含路徑、結尾不加 `/`）。要在自己電腦測試可再加 `http://localhost:8765`。
+   - **已授權的 JavaScript 來源**：填 GitHub Pages 網址的網域，例如 `https://你的帳號.github.io`（只要網域，不含路徑、結尾不加 `/`）。不要把 `http://localhost` 加進正式用戶端（本機佔用該埠的程式就能拿到本站的登入憑證）；要在自己電腦測真實登入，另建一個開發用的用戶端 ID。
    - 已授權的重新導向 URI：**不用填**。
 4. 建立後複製「用戶端 ID」（`…….apps.googleusercontent.com`）。這個值不是機密，會放在公開網頁上。
 
@@ -193,7 +193,7 @@ clasp push
 
 ## 資安措施
 
-已請 Fable 5.2 審查兩次並修正（2026-11-19 第二次審查的 1～4 項在第 10 版、5～6 項在第 11～12 版修正）：
+已請 Fable 5.2 審查三次並修正（2026-11-19 第二次審查的 1～4 項在第 10 版、5～6 項在第 11～12 版修正；2026-11-20 第三次審查中度 2 項在第 14 版、低度 8 項在第 15～16 版與網頁修正）：
 - **登入**（第 14 版起）：ID token 在 Apps Script 本機驗證，不呼叫 tokeninfo——先檢查宣告（`alg`＝RS256、aud＝「設定」表的 OAuth 用戶端 ID、簽發者是 Google、未過期、email 已驗證），再用 Google 公開金鑰（JWKS，`https://www.googleapis.com/oauth2/v3/certs`）驗 RS256 簽章（BigInt 模冪＋PKCS#1 v1.5 SHA-256）。
   - 公開金鑰快取到 Cache-Control 期限（最多 6 小時）；憑證帶了不認得的 `kid`（Google 換金鑰）時重抓一次，但最多每 10 分鐘一次。
   - 偽造或竄改的憑證完全不產生對外連線，所以不再需要全域次數上限，也就無法被拿來擋住所有人登入（第三次審查第 2 項）。
@@ -201,11 +201,14 @@ clasp push
   - 編輯器執行 `jwtSelfTest` 可確認本機驗章在 Apps Script 上可用（2026-11-20：讀到 Google 公開金鑰 2 把，測試向量驗證 true、竄改後 false）。
 - **正式版欄位檢查**（第 14 版起，第三次審查第 1 項）：同步時先檢查正式版第 3 列表頭（A 層級、B 項目、C 單位、D 單價、E 數量、F 複價、G 使用數量、K 起為日期，`CFG.OFFICIAL_HEADERS`），不符就停止同步、主表不改（每日同步會失敗並留下錯誤紀錄）。網站回傳「正式版使用數量」前也確認主表 G3＝「使用數量」，不符就不回傳，避免正式版插欄後把複價送到網頁。
 - **權限**：每個請求都重查名單；人員表只認「核准」勾選 TRUE（白名單）；全部重算只限編輯者；其餘登記、查看、修改紀錄所有核准的人都一樣。
-- **公式注入**：原因、備註、顯示名稱、email 等文字寫進儲存格前，開頭是 `= + - @` 會加 `'` 存成文字並限長；UUID、填寫層級用白名單格式。試算表讀回時會吃掉這個 `'`，所以所有寫入（含「目前進度」整欄重寫、從進度紀錄重建、同步主表）都再套一次 `protectRows_`；重設期初刪舊期初列改用 `deleteRows`，不再把整張表讀出再寫回。
-- **濫用**：請求上限 1 MB、一次最多 3000 筆、每個帳號每分鐘 60 次（未授權者也先限流，再自動加入人員表）；待核准最多 200 筆，名額滿時回「申請名額已滿，請直接聯絡管理者」，同一帳號 10 分鐘內不再搶鎖；UUID 去重；查表用無原型物件。
-- **進料登記**：日期不早於上線日、不晚於今天；單筆不超過圖面合計 2 倍；負數（退料、更正）必須寫備註；登記後累計不能小於 0；每個帳號每分鐘最多 10 筆（`MAT_RATE_PER_MIN`）。網頁送出前也做同樣檢查。
+- **公式注入**：原因、備註、顯示名稱、email 等文字寫進儲存格前，開頭是 `= + - @`（含全形 `＝＋－＠`，`FORMULA_START`）會加 `'` 存成文字並限長；填寫層級用白名單格式。試算表讀回時會吃掉這個 `'`，所以所有寫入（含「目前進度」整欄重寫、從進度紀錄重建、同步主表、同步重排「網站每日數量」的表頭日期與期初／逐日值）都再套一次 `protectRows_`；重設期初刪舊期初列改用 `deleteRows`，不再把整張表讀出再寫回。
+- **UUID**（第 15 版起）：只收 8-4-4-4-12 十六進位格式（`uuidOf_`，網頁用 `crypto.randomUUID` 產生），一律存小寫；`00000001`、`2026-11-19` 這類會被試算表轉成數字或日期、讓去重失效的值直接拒絕。
+- **濫用**：請求上限 1 MB、一次最多 3000 筆、每個帳號每分鐘 60 次（未授權者也先限流，再自動加入人員表；計數的讀＋寫包在鎖裡，並行請求也不會超過，`withRateLock_`：document lock，取不到改 user lock，都不能用才照舊計數；健康檢查 GET 會回報 `lock`，2026-11-20 實測為 `document`）；待核准最多 200 筆（只算 A 欄有帳號的列，預先拉好的空白勾選框不算；新申請填進第一個空白列），名額滿時回「申請名額已滿，請直接聯絡管理者」，同一帳號 10 分鐘內不再搶鎖；UUID 去重；查表用無原型物件。
+- **上線日必填**（第 15 版起）：「設定」表的上線日空白或格式錯誤時，進度與進料登記一律拒絕（回 `config`，網頁把資料留在手機、修好後自動重送），不會變成可以補登任何過去日期。
+- **登入失敗不寫快取**：格式錯誤或驗不過的憑證不寫任何快取（第 14 版起已沒有負快取），未登入者無法大量寫入快取擠掉其他項目。
+- **進料登記**：日期不早於上線日、不晚於今天；單筆不超過圖面合計 2 倍；負數（退料、更正）必須寫備註；登記後累計不能小於 0；每個帳號每分鐘最多 10 筆（`MAT_RATE_PER_MIN`，第 15 版起在登記鎖內計數）。網頁送出前也做同樣檢查。
 - **資料**：API 不讀主表，回傳只有數量、百分比與名稱，沒有單價、複價；錯誤訊息不含內部細節。
-- **網頁**：CSP（只允許本站、Google 登入與 Apps Script）、no-referrer、禁止被其他網站嵌入；所有畫面文字都跳脫；Google 登入不自動選帳號（共用手機）；登出時提醒還有沒送出的資料。
+- **網頁**：CSP（只允許本站、Google 登入與本部署的 Apps Script 路徑 `script.google.com/macros/s/<部署 ID>/`；換部署 ID 時 `web/index.html` 的 CSP 要跟 `web/config.js` 一起改，`tests/web-test.js` 會檢查）、離線佇列從 localStorage 讀回時檢查格式（`web/outbox.js`，格式不對的批次丟掉並提示，不會讓畫面卡住）、no-referrer、禁止被其他網站嵌入；所有畫面文字都跳脫；Google 登入不自動選帳號（共用手機）；登出時提醒還有沒送出的資料。
 - **權限範圍**：Apps Script 只要試算表、外部連線、觸發器、選單；不要雲端硬碟權限。
 - **正式版（Google 權限保證唯讀）**：Apps Script 的權限範圍只有 `spreadsheets.currentonly`（只能改綁定的這份試算表）＋ `spreadsheets.readonly`（其他試算表只能讀），沒有「編輯所有試算表」；程式就算寫錯也改不到正式版。同步用 Sheets API（進階服務）的 `spreadsheets.get`／`values.get` 讀正式版數值；主表格式保留不動（正式版新增列時新列沿用上一列格式，正式版改底色、合併等不會同步過來）。編輯器執行 `officialAccessCheck` 可確認目前授權的範圍。
   - 若日後看到授權仍含「查看、編輯、建立及刪除您的所有 Google 試算表檔案」，是舊授權累積：到 Google 帳戶「第三方存取權」移除「工項進度登記 API」，再到 Apps Script 執行任一函式重新授權（2026-11-19 已做過一次）。
@@ -227,7 +230,7 @@ node tests/gas-test.js apps-script
 node tests/web-test.js
 ```
 
-`tests/web-test.js` 測網頁共用的房間分組（`web/rooms.js`），包含門窗依房號分組與未對應房號。
+`tests/web-test.js` 測網頁共用的房間分組（`web/rooms.js`，包含門窗依房號分組與未對應房號）、離線佇列格式檢查（`web/outbox.js`），以及 CSP 與 `config.js` 的部署網址一致。
 
 ## 在自己電腦預覽（示範模式）
 
@@ -237,7 +240,7 @@ node tests/web-test.js
 python -m http.server 8765 --directory web
 ```
 
-開 <http://localhost:8765/?demo=1>，或在登入頁按「示範模式」。右上「⋯」選單可模擬斷線、模擬別人同時修改、還原假資料。
+開 <http://localhost:8765/?demo=1>，或在登入頁按「示範模式」（正式用戶端已不允許 localhost 來源，本機只能用示範模式）。右上「⋯」選單可模擬斷線、模擬別人同時修改、還原假資料。
 
 ## 疑難排解
 

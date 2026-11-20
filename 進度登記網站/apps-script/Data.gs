@@ -109,7 +109,7 @@ function uuidSet_(sh, col) {
   var set = Object.create(null);
   var n = sh.getLastRow() - 1;
   if (n <= 0) return set;
-  sh.getRange(2, col, n, 1).getValues().forEach(function (r) { if (r[0]) set[String(r[0])] = 1; });
+  sh.getRange(2, col, n, 1).getValues().forEach(function (r) { if (r[0]) set[String(r[0]).toLowerCase()] = 1; });
   return set;
 }
 
