@@ -52,7 +52,12 @@
             var n = 1 + Math.floor(rnd() * 5);
             for (var t = 1; t <= n; t++) {
               var rid = fl + '-' + x[0] + pad(t);
-              my.push([lv + '|' + fl + '|' + rid, ii, fl, rid, pick(['東側', '西側', '北側', '南側']) + pick(roomNames), '單樘', 1, c.cat + '|' + fl + '|' + x[0]]);
+              if (rnd() < 0.9) { // 依房號對應到房間
+                var rm = pick(rooms[fl]);
+                my.push([lv + '|' + fl + '|' + rid, ii, fl, rid, rm[0] + ' ' + rm[1], '單樘', 1, c.cat + '|' + fl + '|' + rm[0]]);
+              } else { // 未對應房號：以代號為組
+                my.push([lv + '|' + fl + '|' + rid, ii, fl, rid, pick(['東側', '西側', '北側', '南側']) + '小間', '單樘', 1, c.cat + '|' + fl + '|' + x[0]]);
+              }
             }
           });
         } else if (x[0] === 'R1') {

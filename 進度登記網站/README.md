@@ -40,7 +40,7 @@
 **更新網頁**：改完 `web/` 後，在 `D:\分層數量` 執行下列指令，把 `web/` 打包成新的 `gh-pages` commit 推上去（不會切換分支、不動工作資料夾）：
 
 ```bash
-git fetch origin gh-pages; T=$(mktemp); for f in index.html app.js style.css config.js demo.js privacy.html; do printf '100644 blob %s\t%s\n' "$(git hash-object -w "進度登記網站/web/$f")" "$f" >> "$T"; done; printf '100644 blob %s\t.nojekyll\n' "$(git hash-object -w --stdin </dev/null)" >> "$T"; C=$(echo "更新進度登記網站" | git commit-tree "$(git mktree < "$T")" -p origin/gh-pages); git push origin "$C:refs/heads/gh-pages"
+git fetch origin gh-pages; T=$(mktemp); for f in index.html app.js rooms.js style.css config.js demo.js privacy.html; do printf '100644 blob %s\t%s\n' "$(git hash-object -w "進度登記網站/web/$f")" "$f" >> "$T"; done; printf '100644 blob %s\t.nojekyll\n' "$(git hash-object -w --stdin </dev/null)" >> "$T"; C=$(echo "更新進度登記網站" | git commit-tree "$(git mktree < "$T")" -p origin/gh-pages); git push origin "$C:refs/heads/gh-pages"
 ```
 
 ---
@@ -178,7 +178,7 @@ clasp push
 ## 運作方式
 
 - **登入**：網頁用 Google 登入按鈕取得 ID token，每個請求都帶著；Apps Script 向 Google 驗證 token 是發給本網站（aud＝「設定」表的用戶端 ID）、未過期、email 已驗證，再查 email 是否在本試算表的共用名單。token 約 1 小時過期，過期時網頁會請你再登入，未送出的資料不會遺失。
-- **登記**：樓層、房間（門窗是代號組）、代號三層都可填；上層覆蓋底下前，如果底下已有不同的值會先提示。完成% 比上次低要填原因。門窗每樘分框 60%／扇 40%（窗：窗框／玻璃及五金；捲門：導軌及捲軸箱／門片及電動機）。比例分配的數量與進料在「代號層」。
+- **登記**：樓層、房間、代號三層都可填（門窗也是「樓層 → 房間 → 代號 → 每一樘」，見下方「門窗依房號」）；上層覆蓋底下前，如果底下已有不同的值會先提示。完成% 比上次低要填原因。門窗每樘分框 60%／扇 40%（窗：窗框／玻璃及五金；捲門：導軌及捲軸箱／門片及電動機）。比例分配的數量與進料在「代號層」。
 - **寫入**：每筆登記寫「進度紀錄」（只新增，含舊值、原因、登記人、時間、UUID），並更新「目前進度」的完成%、框、扇、日期、登記人（**不寫 J 欄完成量公式**）。補登較早日期只進紀錄與每日數量，不覆蓋較新的目前進度。
 - **網站每日數量**：寫入後重算該層級上線日之後每一天：累計(D) = 每個位置取施工日期 ≤ D 的最新一筆 × 圖面數量；當日 = 累計(D) − 累計(前一天)。只寫 K 欄以後、上線日以後的日期欄；E、G、H、I 是公式不碰；J 是期初。
 - **衝突**：送出時帶「看到的舊值」，和試算表不同就不寫入，網頁顯示「被別人改過」，可選「採用目前值」或「以我的為準重送」。
@@ -200,13 +200,23 @@ clasp push
   - 若日後看到授權仍含「查看、編輯、建立及刪除您的所有 Google 試算表檔案」，是舊授權累積：到 Google 帳戶「第三方存取權」移除「工項進度登記 API」，再到 Apps Script 執行任一函式重新授權（2026-11-19 已做過一次）。
 - 建議：GitHub Pages 用獨立的 GitHub 帳號或組織（`帳號.github.io` 底下所有專案頁同源，共享 sessionStorage 等）。
 
+## 門窗依房號（2026-11-20）
+
+- 625 樘門窗依圖面座標對應房號（做法見 `進度登記網站規劃/_程式/門窗房號/README.md`，對照表 `門窗房號對照.csv`）：612 樘已對應、13 樘待確認（1F～11F 各 1 樘 D10 在女廁前室旁無房號小間、B1F 的 D7 與 DA 各 1 樘）。
+- 試算表「位置」：門窗單樘列的 L「房間ID」改成 `門窗|樓層|房號`、H 改成「房號 空間名稱」；13 樘待確認維持 `門窗|樓層|代號`。位置ID 不變，所以已有登記、期初、分層進度與網站每日數量都照舊（2026-11-20 更新 612 列，前後比對門窗各代號完成量相同）。
+- 網頁（`web/rooms.js` 的 `roomOf`）：門窗歸到房間，房間內依代號、標籤序號排列每一樘，保留框／扇勾選；「整間施作設為」套到該房間所有樘的框＋扇。房間ID 第三段等於代號的（待確認）仍以代號為組，標「未對應房號」。共 311 間有門窗，其中 31 間只有門窗（空調管道間、清潔間、R104／R105／R107 等）。
+- 改「位置」H／L 而列數不變時，要按選單「清除位置快取」（或等 2 分鐘）網站才會讀到新分組。
+
 ## 測試
 
 Apps Script 的邏輯可以在本機用模擬試算表測（期初、登記、每日量、衝突、去重、補登、同步重排、權限與資安）：
 
 ```bash
 node tests/gas-test.js apps-script
+node tests/web-test.js
 ```
+
+`tests/web-test.js` 測網頁共用的房間分組（`web/rooms.js`），包含門窗依房號分組與未對應房號。
 
 ## 在自己電腦預覽（示範模式）
 
