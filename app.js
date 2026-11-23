@@ -540,7 +540,11 @@
         if (diff != null && Math.abs(diff) < 0.005) diff = 0;
         return `<tr><th class="rh" title="${esc(o.name)}"><span class="code">${esc(o.code)}</span><span class="muted">${esc(o.short.slice(0, 14))}</span></th>${fls.map(f => {
           const L = itemFloorLocs(i, f);
-          if (!L.length) return f === CODE_FL ? `<td><button type="button" data-e="cell" data-ii="${i}" data-fl="${CODE_FL}" style="background:transparent;border:1px dashed var(--line)" aria-label="${esc(o.code)} 進料">進料</button></td>` : '<td><span class="na"></span></td>';
+          if (!L.length) {
+            if (f !== CODE_FL) return '<td><span class="na"></span></td>';
+            const m = matRatio(i) * 100;
+            return `<td><button type="button" data-e="cell" data-ii="${i}" data-fl="${CODE_FL}" style="background:${heat(m)};color:${heatInk(m)};border:1px dashed var(--line);white-space:nowrap" title="進料比例 ${fp(m)}（進料累計 ${esc(fmt(o.mat, o.unit))} ÷ 圖面 ${esc(fmt(o.total, o.unit))}）" aria-label="${esc(o.code)} 進料 ${fp(m)}">進料 ${Math.round(m)}</button></td>`;
+          }
           const p = sum(L).p;
           return `<td><button type="button" data-e="cell" data-ii="${i}" data-fl="${esc(f)}" style="background:${heat(p)};color:${heatInk(p)}" aria-label="${esc(o.code)} ${esc(f)} ${fp(p)}">${Math.round(p)}</button></td>`;
         }).join('')}<td class="v pct">${fp(w)}</td><td class="v ${op > 100.01 ? 'diffbad' : ''}" title="正式版使用數量 ${o.official == null ? '—' : fmt(o.official, o.unit)} ÷ 圖面 ${fmt(o.total, o.unit)}">${fp(op)}</td><td class="v ${diff ? 'diffbad' : ''}">${diff == null ? '—' : fmt(diff, o.unit)}</td></tr>`;
